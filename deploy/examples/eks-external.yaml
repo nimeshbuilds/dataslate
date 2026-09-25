@@ -1,0 +1,39 @@
+# Illustrative values. Build/publish images and replace endpoint, subnet and certificate placeholders.
+fullnameOverride: dataslate
+oidc:
+  issuer: https://identity.example.com/realms/dataslate
+  audience: dataslate-api
+  clientId: dataslate-web
+  scopes: openid profile
+api:
+  image:
+    repository: registry.example.com/dataslate/api
+web:
+  image:
+    repository: registry.example.com/dataslate/web
+postgres:
+  mode: external
+  external:
+    secretName: dataslate-database
+    secretKey: database-url
+    caSecretName: dataslate-database-ca
+    caSecretKey: ca.crt
+ingress:
+  enabled: true
+  className: alb
+  host: dataslate.example.com
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:111122223333:certificate/00000000-0000-0000-0000-000000000000
+    alb.ingress.kubernetes.io/healthcheck-path: /web-healthz
+  tls:
+    externallyTerminated: true
+networkPolicy:
+  webIngressFrom:
+    # ALB is outside Kubernetes; replace with ALB subnet CIDRs and enforce SGs too.
+    - ipBlock: {cidr: 10.10.0.0/24}
+    - ipBlock: {cidr: 10.10.1.0/24}
+  postgresEgressCidrs: [10.20.0.0/24, 10.20.1.0/24]

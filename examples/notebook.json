@@ -1,0 +1,8 @@
+{
+  "name": "Orders exploration",
+  "kind": "notebook",
+  "cells": [
+    {"id": "intro", "language": "python", "source": "# Connect a qualified Spark runtime before executing.\n# Source editing and saving are available in the foundation.\n"},
+    {"id": "orders", "language": "sql", "source": "SELECT * FROM main.analytics.orders LIMIT 100;"}
+  ]
+}

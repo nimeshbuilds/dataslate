@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataslate"
+version = "0.1.0a1"
+description = "DataSlate control-plane SDK and CLI"
+requires-python = ">=3.11"
+license = {text = "Apache-2.0"}
+dependencies = []
+
+[project.scripts]
+dataslate = "dataslate.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

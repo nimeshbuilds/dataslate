@@ -1,0 +1,13 @@
+# Optional administrator-owned resource for STANDARD EKS EBS CSI, not EKS Auto Mode.
+# Inspect existing StorageClasses first; this chart does not install or adopt this resource.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: dataslate-gp3
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+  encrypted: "true"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer

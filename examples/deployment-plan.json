@@ -1,0 +1,9 @@
+{
+  "namespace": "dataslate",
+  "cloud": "aws",
+  "modules": [
+    {"id": "postgres", "mode": "managed"},
+    {"id": "spark-operator", "mode": "managed"},
+    {"id": "spark", "mode": "managed"}
+  ]
+}

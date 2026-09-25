@@ -1,0 +1,9 @@
+{
+  "name": "orders-preview",
+  "operator": "apache",
+  "image": "registry.example.com/dataslate/spark:4.1.3",
+  "mainApplicationFile": "local:///opt/spark/jobs/orders.py",
+  "serviceAccount": "dataslate-spark",
+  "namespace": "dataslate",
+  "executorInstances": 2
+}

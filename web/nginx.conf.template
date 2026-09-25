@@ -1,0 +1,46 @@
+worker_processes auto;
+pid /tmp/dataslate-nginx/nginx.pid;
+error_log /dev/stderr warn;
+events { worker_connections 1024; }
+http {
+  include /etc/nginx/mime.types;
+  default_type application/octet-stream;
+  # Query strings may contain authorization callback codes. Do not log them.
+  log_format safe '$remote_addr $request_method $uri $status';
+  access_log /dev/stdout safe;
+  server_tokens off;
+  sendfile on;
+  client_max_body_size 2m;
+  client_body_temp_path /tmp/dataslate-nginx/client;
+  proxy_temp_path /tmp/dataslate-nginx/proxy;
+  fastcgi_temp_path /tmp/dataslate-nginx/fastcgi;
+  uwsgi_temp_path /tmp/dataslate-nginx/uwsgi;
+  scgi_temp_path /tmp/dataslate-nginx/scgi;
+  server {
+    listen 8080;
+    root /usr/share/nginx/html;
+    index index.html;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy no-referrer always;
+    add_header X-Frame-Options DENY always;
+    # HTTPS connections are required for production OIDC discovery/token endpoints.
+    # CodeMirror needs inline styles; no inline JavaScript or external fonts are used.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" always;
+    location = /web-healthz { access_log off; default_type text/plain; return 200 'ok\n'; }
+    location /api/ {
+      proxy_pass ${DATASLATE_API_UPSTREAM};
+      proxy_http_version 1.1;
+      proxy_set_header Host $host;
+      proxy_set_header Connection "";
+      proxy_connect_timeout 5s;
+      proxy_read_timeout 30s;
+      proxy_ssl_server_name on;
+      proxy_ssl_verify on;
+      proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+    }
+    location = /healthz { proxy_pass ${DATASLATE_API_UPSTREAM}; }
+    location = /readyz { proxy_pass ${DATASLATE_API_UPSTREAM}; }
+    location /assets/ { try_files $uri =404; expires 1y; }
+    location / { try_files $uri $uri/ /index.html; expires -1; }
+  }
+}

@@ -1,0 +1,41 @@
+{{- if not .Values.oidc.issuer -}}
+{{- fail "oidc.issuer is required; Kubernetes deployment supports verified OIDC only" -}}
+{{- end -}}
+{{- if eq .Values.oidc.audience .Values.oidc.clientId -}}
+{{- fail "oidc.audience must differ from oidc.clientId so browser ID tokens are not accepted as API credentials" -}}
+{{- end -}}
+{{- if eq .Values.postgres.mode "external" -}}
+{{- if not (and .Values.postgres.external.secretName .Values.postgres.external.caSecretName) -}}
+{{- fail "external PostgreSQL requires existing connection and trusted CA secret references" -}}
+{{- end -}}
+{{- if and .Values.networkPolicy.enabled (empty .Values.networkPolicy.postgresEgressCidrs) -}}
+{{- fail "external PostgreSQL requires networkPolicy.postgresEgressCidrs when network policies are enabled" -}}
+{{- end -}}
+{{- else -}}
+{{- if not .Values.postgres.managed.operatorAccepted -}}
+{{- fail "managed PostgreSQL requires postgres.managed.operatorAccepted=true after explicit operator ownership/compatibility review" -}}
+{{- end -}}
+{{- if not (.Capabilities.APIVersions.Has "postgresql.cnpg.io/v1/Cluster") -}}
+{{- fail "CloudNativePG Cluster CRD is required; bootstrap the operator separately or add --api-versions postgresql.cnpg.io/v1/Cluster for offline rendering" -}}
+{{- end -}}
+{{- if not .Values.postgres.managed.storageClass -}}
+{{- fail "managed PostgreSQL requires an explicit persistent storage class" -}}
+{{- end -}}
+{{- if ne (int .Values.networkPolicy.postgresPort) 5432 -}}
+{{- fail "managed CloudNativePG uses port 5432; a custom networkPolicy.postgresPort is supported for external PostgreSQL only" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.ingress.enabled -}}
+{{- if not (and .Values.ingress.className .Values.ingress.host) -}}
+{{- fail "ingress.className and ingress.host are required when ingress is enabled" -}}
+{{- end -}}
+{{- if not (or .Values.ingress.tls.secretName .Values.ingress.tls.externallyTerminated) -}}
+{{- fail "ingress requires a TLS secret or explicit external TLS termination" -}}
+{{- end -}}
+{{- if and .Values.networkPolicy.enabled (empty .Values.networkPolicy.webIngressFrom) -}}
+{{- fail "configure networkPolicy.webIngressFrom for the actual ingress controller" -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.podDisruptionBudget.enabled (or (ge (int .Values.podDisruptionBudget.minAvailable) (int .Values.api.replicas)) (ge (int .Values.podDisruptionBudget.minAvailable) (int .Values.web.replicas))) -}}
+{{- fail "PDB minAvailable must be lower than both deployment replica counts" -}}
+{{- end -}}

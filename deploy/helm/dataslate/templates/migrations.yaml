@@ -1,0 +1,45 @@
+{{- if .Values.migrations.enabled }}
+# A normal Job, not a pre-install hook: managed Postgres must exist before migration.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "dataslate.fullname" . }}-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  # Allow a newly provisioned database to become available within the bounded deadline.
+  backoffLimit: 10
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "dataslate.selector" . | nindent 8 }}
+        app.kubernetes.io/component: migrations
+        dataslate.io/tier: backend
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "dataslate.fullname" . }}-api
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "dataslate.podSecurityContext" . | nindent 8 }}
+      {{- include "dataslate.scheduling" . | nindent 6 }}
+      containers:
+        - name: migrate
+          image: {{ include "dataslate.image" .Values.api.image | quote }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          args: [migrate]
+          securityContext:
+            {{- include "dataslate.containerSecurityContext" . | nindent 12 }}
+          env:
+            {{- include "dataslate.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        {{- include "dataslate.databaseVolume" . | nindent 8 }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+{{- end }}

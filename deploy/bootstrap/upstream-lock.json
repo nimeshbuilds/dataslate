@@ -1,0 +1,22 @@
+{
+  "verifiedAt": "2026-09-24",
+  "status": "upstream pins; DataSlate integration not yet live-qualified",
+  "components": {
+    "spark-operator": {
+      "repository": "https://apache.github.io/spark-kubernetes-operator",
+      "chart": "spark-kubernetes-operator",
+      "chartVersion": "1.8.0",
+      "appVersion": "1.0.0",
+      "sha256": "7536a8849b8a7c242283d0e393b5e0ec56365f34ec93717b158c76dfa1036a06",
+      "url": "https://github.com/apache/spark-kubernetes-operator/releases/download/1.0.0/spark-kubernetes-operator-1.8.0.tgz"
+    },
+    "cloudnative-pg": {
+      "repository": "https://cloudnative-pg.github.io/charts",
+      "chart": "cloudnative-pg",
+      "chartVersion": "0.29.1",
+      "appVersion": "1.30.1",
+      "sha256": "b53d3991fe84bcf38767e7702cae78666265427a127a26fff168ab4207d2b1df",
+      "url": "https://github.com/cloudnative-pg/charts/releases/download/cloudnative-pg-v0.29.1/cloudnative-pg-0.29.1.tgz"
+    }
+  }
+}

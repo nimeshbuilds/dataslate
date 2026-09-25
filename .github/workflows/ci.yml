@@ -1,0 +1,101 @@
+name: Foundation checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: dataslate_test
+          POSTGRES_USER: dataslate
+          POSTGRES_PASSWORD: dataslate-ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U dataslate -d dataslate_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - name: API tests and vet
+        run: make test-api
+        env:
+          # Ephemeral CI database only; production requires verified TLS.
+          DATASLATE_TEST_DATABASE_URL: postgres://dataslate:dataslate-ci-only@127.0.0.1:5432/dataslate_test?sslmode=disable
+      - name: API image build
+        run: docker build -t dataslate-api:ci api
+
+  sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with: {python-version: "3.12"}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - run: make test-sdk
+      - run: python -m pip install ./sdk/python
+      - run: dataslate --help
+      - name: Real API and SDK smoke
+        run: bash scripts/smoke.sh
+
+  workspace:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+      - run: npm test
+        working-directory: web
+      - name: Workspace image build
+        run: docker build -t dataslate-web:ci web
+
+  deployment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with: {python-version: "3.12"}
+      - run: python -m pip install -r deploy/tests/requirements.txt
+      - name: Install verified local Helm binary
+        run: python deploy/scripts/fetch-helm.py
+      - name: Fetch verified upstream bootstrap charts
+        run: python deploy/scripts/fetch-upstream.py
+      - name: Validate deployment profiles
+        run: bash deploy/scripts/check.sh
+        env:
+          HELM_BIN: deploy/.cache/helm

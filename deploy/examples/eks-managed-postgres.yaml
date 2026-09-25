@@ -1,0 +1,11 @@
+# Overlay on eks-external.yaml. Existing CNPG operator and administrator-owned gp3 StorageClass required.
+# This creates a persistent database, but backup/restore and live qualification are still release gates.
+postgres:
+  mode: managed
+  managed:
+    operatorAccepted: true
+    name: dataslate-db
+    instances: 3
+    storageClass: dataslate-gp3
+    storageSize: 50Gi
+    retainOnUninstall: true

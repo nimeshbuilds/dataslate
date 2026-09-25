@@ -1,0 +1,14 @@
+DataSlate foundation manifests installed in {{ .Release.Namespace }}.
+
+This chart installs the authenticated application and explicit schema migration Job.
+It does not install Spark, a SQL warehouse, ingestion, Unity Catalog or Sylon execution.
+Those adapters remain planned; deployment planning and Spark previews have no side effects.
+
+{{- if eq .Values.postgres.mode "managed" }}
+CloudNativePG Cluster: {{ include "dataslate.postgresName" . }}.
+The existing operator owns database Pods/PVCs. Qualify backup/restore before production.
+{{- end }}
+
+Inspect rollout, migration Job and /readyz before permitting user traffic.
+Register the exact HTTPS /auth/callback URI with your OIDC provider.
+See deploy/README.md for prerequisite ownership and acceptance tests.

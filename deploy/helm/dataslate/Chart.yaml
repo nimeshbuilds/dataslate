@@ -1,0 +1,10 @@
+apiVersion: v2
+name: dataslate
+description: DataSlate authenticated workspace and control-plane foundation
+type: application
+version: 0.1.0
+appVersion: 0.1.0-foundation
+kubeVersion: ">=1.29.0-0"
+annotations:
+  dataslate.io/phase: foundation
+  dataslate.io/execution-enabled: "false"

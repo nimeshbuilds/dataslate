@@ -1,0 +1,30 @@
+{{- if eq .Values.postgres.mode "managed" }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "dataslate.postgresName" . }}
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+  {{- if .Values.postgres.managed.retainOnUninstall }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  instances: {{ .Values.postgres.managed.instances }}
+  imageName: {{ .Values.postgres.managed.imageName | quote }}
+  enableSuperuserAccess: false
+  bootstrap:
+    initdb:
+      database: dataslate
+      owner: dataslate
+      dataChecksums: true
+  storage:
+    storageClass: {{ .Values.postgres.managed.storageClass | quote }}
+    size: {{ .Values.postgres.managed.storageSize | quote }}
+  resources:
+    {{- toYaml .Values.postgres.managed.resources | nindent 4 }}
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+{{- end }}

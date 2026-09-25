@@ -1,0 +1,85 @@
+# Empty identity/database fields deliberately prevent an unconfigured installation.
+nameOverride: ""
+fullnameOverride: ""
+imagePullSecrets: []
+oidc:
+  issuer: ""
+  audience: dataslate-api
+  clientId: dataslate-web
+  scopes: openid profile
+api:
+  replicas: 2
+  image:
+    repository: dataslate-api
+    tag: 0.1.0-foundation
+    digest: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+web:
+  replicas: 2
+  image:
+    repository: dataslate-web
+    tag: 0.1.0-foundation
+    digest: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+serviceAccount:
+  annotations: {}
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+postgres:
+  mode: external
+  external:
+    secretName: ""
+    secretKey: database-url
+    caSecretName: ""
+    caSecretKey: ca.crt
+  managed:
+    # Explicit acknowledgment: the administrator owns a compatible existing operator.
+    operatorAccepted: false
+    name: ""
+    instances: 3
+    imageName: ghcr.io/cloudnative-pg/postgresql:17.10@sha256:eb298ae82db3e3f849db57a44bfe6fed4c4a3c95451655611980340409e5c2ec
+    storageClass: ""
+    storageSize: 50Gi
+    resources:
+      requests: {cpu: 500m, memory: 1Gi}
+      limits: {cpu: "2", memory: 2Gi}
+    # Keeps the Cluster/PVC ownership separate from uninstalling the workspace.
+    retainOnUninstall: true
+migrations:
+  enabled: true
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+  tls:
+    secretName: ""
+    # Used only when the ingress controller terminates TLS outside the cluster (e.g. ACM).
+    externallyTerminated: false
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+networkPolicy:
+  enabled: true
+  # Empty means deny remote web ingress. Set your actual ingress-controller peers.
+  webIngressFrom: []
+  dnsNamespace: kube-system
+  dnsPodLabels: {k8s-app: kube-dns}
+  # OIDC discovery/JWKS. Restrict to your gateway/IdP CIDRs where stable.
+  httpsEgressCidrs: [0.0.0.0/0]
+  # Include the HTTPS ports used by your issuer's discovery and JWKS endpoints.
+  httpsEgressPorts: [443]
+  # Required for external PostgreSQL; use database subnets, never the whole Internet.
+  postgresEgressCidrs: []
+  # Must match the port in the external database URL Secret; managed CNPG uses 5432.
+  postgresPort: 5432

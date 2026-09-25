@@ -1,0 +1,19 @@
+# Operator-only bootstrap. No user service accounts, workload RBAC or namespaces are created.
+# DataSlate does not yet submit Spark applications; admission/RBAC qualification remains required.
+operatorDeployment:
+  replicas: 1
+workloadResources:
+  namespaces:
+    create: false
+    overrideWatchedNamespaces: false
+  serviceAccount:
+    create: false
+  roleBinding:
+    create: false
+  clusterRole:
+    create: false
+  role:
+    create: false
+operatorConfiguration:
+  spark-operator.properties: |
+    spark.kubernetes.operator.watchedNamespaces=dataslate-compute
