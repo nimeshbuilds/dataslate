@@ -22,10 +22,20 @@ status = client.status()
 assert status["authMode"] == "development" and status["persistence"] == "memory", "Smoke test requires disposable development API"
 assert status["product"] == "DataSlate" and status["assistant"] == "Sylon"
 assert status["executionEnabled"] is False
+assert status["executionMode"] == "disabled" and status["notebookExecutionEnabled"] is False
 suffix = uuid4().hex[:10]
 workspace = client.create_workspace("SDK integration " + suffix, "sdk-" + suffix)
 other_workspace = client.create_workspace("SDK other " + suffix, "other-" + suffix)
 workspace_id = workspace["id"]
+assert client.execution_bindings(workspace_id) == {"items": []}
+assert client.runs(workspace_id) == {"items": []}
+expect_error(501, lambda: client.create_run(workspace_id, "unconfigured", idempotency_key="smoke-submission"))
+expect_error(501, lambda: client.create_notebook_run(workspace_id, "unconfigured", "nb-missing", 1, idempotency_key="smoke-notebook"))
+expect_error(404, lambda: client.run(workspace_id, "run-missing"))
+expect_error(404, lambda: client.cancel_run(workspace_id, "run-missing"))
+expect_error(404, lambda: client.run_events(workspace_id, "run-missing"))
+expect_error(404, lambda: client.run_logs(workspace_id, "run-missing"))
+expect_error(404, lambda: client.run_source(workspace_id, "run-missing"))
 body = {"name": "API integration notebook", "kind": "notebook", "cells": [{"id": "cell-1", "language": "python", "source": "value = 42"}]}
 notebook = client.create_notebook(workspace_id, body)
 assert client.notebook(workspace_id, notebook["id"])["cells"] == body["cells"]
@@ -46,4 +56,4 @@ for operator, group in (("apache", "spark.apache.org/v1"), ("kubeflow", "sparkop
     result = client.spark_preview(workspace_id, {**request, "operator": operator})
     assert result["submitted"] is False
     assert result["manifest"]["apiVersion"] == group
-print(json.dumps({"result": "passed", "checks": ["API/SDK contract", "notebook save/reopen", "revision conflict", "cross-workspace lookup", "broader module inventory", "dependency preview", "Apache and Kubeflow manifests"], "liveEngineExecution": False}))
+print(json.dumps({"result": "passed", "checks": ["API/SDK contract", "disabled execution and owner-scoped routes", "notebook save/reopen", "revision conflict", "cross-workspace lookup", "broader module inventory", "dependency preview", "Apache and Kubeflow manifests"], "liveEngineExecution": False}))

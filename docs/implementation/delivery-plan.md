@@ -43,9 +43,9 @@ Use a few design partners to validate this hypothesis alongside engineering. Ask
 
 ## Current evidence
 
-The [validation record](validation.md) links passing foundation CI for API/authentication, PostgreSQL persistence, Python SDK/API smoke, source-authoring browser tests, image builds and Helm rendering. The repository does not yet execute Spark, SQL, ingestion or Sylon requests. Container builds do not demonstrate container startup, and rendered charts do not establish a working EKS installation.
+The [validation record](validation.md) separates published foundation CI from the later local execution implementation. The repository now implements approved Spark applications and exact saved Python notebook batches through a durable controller. Source snapshots, scoped UI/API/CLI runs, migration/recovery tests and restricted local Kubernetes qualification are recorded individually. SQL, ingestion, rich result delivery and Sylon still require backend implementation. Local operator execution and restricted container startup do not establish a working EKS/S3 production installation.
 
-Code observations at publication revision `a18ddd2`:
+Historical observations at publication revision `a18ddd2` (the execution implementation below addresses these; they are not the current code state):
 
 - `api/internal/platform/http.go` reports execution disabled and returns a capability error for runs.
 - `api/internal/platform/postgres.go` applies/checks only migration 1. Extend the migration runner before introducing execution tables; adding a second SQL file alone will not apply it.
@@ -84,6 +84,18 @@ Each milestone is a deployed, observable user journey. Architecture/security wor
 M1 is an engineering batch capability. The selected first customer release includes M0–M4; a raw-file engineering job is not a substitute for the governed SQL gate. Focus the first ingestion source on deterministic object-store files; add Kafka/CDC through separate replay/ordering/checkpoint gates. Retain other connectors in the roadmap rather than claim a universal source adapter.
 
 ## Immediate implementation backlog
+
+The ordered backlog below retains the original dependencies. The current implementation checkpoint is:
+
+| Area | Implemented evidence | Remaining gate |
+|---|---|---|
+| Acceptance and persistence | Ordered migrations, atomic owner-scoped idempotency/capacity, independent saved-revision source snapshots and fenced leases | Production upgrade/restore and operational retention policy |
+| Execution | Apache operator discovery, immutable bindings, source preparation, observation, logs, deadlines, revocation, cancellation and explicit artifact cleanup | EKS/S3 credentials/data correctness; full pinned lakehouse runtime tuple; broader engine profiles |
+| User workflow | Run UI, saved Python batch review, immutable provenance and SDK/CLI recovery | Interactive cells/sessions, rich result protocol, exact data types and charts |
+| Compute boundary | Restricted namespace generator, admission, quotas, split API/controller/workload identities and local negative probes | Cloud IAM/CNI, malicious-code threat model and complete installation qualification |
+| Data platform | Complete contracts and capability inventory retained | Ingestion/publication, governed SQL/RLS, scheduling, maintenance, Sylon and all other unimplemented workstreams |
+
+None of M0–M6 is promoted to a completed production milestone solely from these local checks. In particular, M1 still requires its EKS/S3 exit evidence.
 
 1. Extend the ordered, embedded PostgreSQL migration mechanism and readiness checks. Cover migration from the existing schema, concurrent application, interrupted migration and incompatible versions.
 2. Define `RuntimeProfile`, `WorkspaceExecutionBinding`, `Run`, `Attempt`, dispatch/outbox, event and artifact/result resources in one OpenAPI contract. Persist run acceptance plus dispatch intent atomically. Retain immutable source/image/binding versions separately from mutable notebooks.

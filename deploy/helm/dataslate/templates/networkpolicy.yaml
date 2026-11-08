@@ -48,6 +48,13 @@ spec:
         {{- end }}
         {{- end }}
       ports: [{protocol: TCP, port: {{ .Values.networkPolicy.postgresPort }}}]
+    {{- if .Values.execution.enabled }}
+    - to:
+        {{- range .Values.execution.kubernetesEgressCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.execution.kubernetesPort }}}]
+    {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

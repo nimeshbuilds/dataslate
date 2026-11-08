@@ -44,6 +44,21 @@ def parser():
     preview = spark.add_parser("preview")
     preview.add_argument("--workspace", required=True)
     preview.add_argument("--file", required=True)
+    runs = commands.add_parser("run", help="Granted batch applications, saved Python notebooks and durable run state").add_subparsers(dest="action", required=True)
+    for action in ("bindings", "list", "submit", "submit-notebook", "get", "cancel", "events", "logs", "source", "watch"):
+        command = runs.add_parser(action)
+        command.add_argument("--workspace", required=True)
+        if action in {"get", "cancel", "events", "logs", "source", "watch"}:
+            command.add_argument("--id", required=True)
+        if action in {"submit", "submit-notebook"}:
+            command.add_argument("--binding", required=True)
+            command.add_argument("--idempotency-key", required=True, help="Persist before submission; reuse after an uncertain outcome")
+        if action == "submit-notebook":
+            command.add_argument("--notebook", required=True, help="Saved notebook ID in this workspace")
+            command.add_argument("--revision", required=True, type=int, help="Exact saved revision; never automatically replaced with latest")
+        if action == "watch":
+            command.add_argument("--interval", type=float, default=2)
+            command.add_argument("--max-wait", type=float, default=300)
     return result
 
 
@@ -68,6 +83,22 @@ def main(argv=None):
                 output = client.update_notebook(args.workspace, args.id, _file(args.file))
         elif args.command == "deployment":
             output = client.deployment_plan(_file(args.file))
+        elif args.command == "run":
+            if args.action == "watch":
+                for state in client.watch_run(args.workspace, args.id, interval=args.interval, max_wait=args.max_wait):
+                    print(json.dumps(state, ensure_ascii=False), flush=True)
+                return 0 if state["state"] == "succeeded" else 3
+            if args.action == "submit":
+                output = client.create_run(args.workspace, args.binding, idempotency_key=args.idempotency_key)
+            elif args.action == "submit-notebook":
+                output = client.create_notebook_run(args.workspace, args.binding, args.notebook,
+                                                    args.revision, idempotency_key=args.idempotency_key)
+            elif args.action in {"bindings", "list"}:
+                output = (client.execution_bindings if args.action == "bindings" else client.runs)(args.workspace)
+            else:
+                operation = {"get": client.run, "cancel": client.cancel_run,
+                             "events": client.run_events, "logs": client.run_logs, "source": client.run_source}[args.action]
+                output = operation(args.workspace, args.id)
         else:
             output = client.spark_preview(args.workspace, _file(args.file))
         print(json.dumps(output, indent=2, ensure_ascii=False))
@@ -78,6 +109,9 @@ def main(argv=None):
     except (ValueError, OSError) as exc:
         print(json.dumps({"error": {"code": "invalid_input", "message": str(exc)}}), file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print(json.dumps({"error": {"code": "interrupted", "message": "Client interrupted; backend runs are not cancelled"}}), file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

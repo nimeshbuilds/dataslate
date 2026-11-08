@@ -2,10 +2,24 @@ export interface Workspace { id: string; name: string; slug: string; revision: n
 export interface Cell { id: string; language: 'python' | 'sql'; source: string }
 export interface Notebook { id: string; workspaceId: string; name: string; kind: 'notebook' | 'sql'; cells: Cell[]; revision: number; createdAt: string; updatedAt: string }
 export interface Module { id: string; name: string; category: string; implementation: 'foundation' | 'planned'; description: string; dependencies: string[]; modes: ('managed' | 'external')[]; enabledByDefault: boolean }
-export interface PlatformStatus { product: string; assistant: string; phase: string; authMode: string; persistence: string; executionEnabled: boolean }
+export interface PlatformStatus { product: string; assistant: string; phase: string; authMode: string; persistence: string; executionEnabled: boolean; notebookExecutionEnabled?: boolean }
 export interface DeploymentPlan { cloud: string; namespace: string; actions: { moduleId: string; mode: string; action: string; verification: string }[]; warnings: string[]; executable: false }
 export interface ManifestPreview { manifest: object; warnings: string[]; submitted: false }
 export interface AuthConfig { mode: 'development' | 'oidc'; issuer?: string; clientId?: string; audience?: string; scopes?: string[] | string }
+export interface ExecutionProfile { operator: 'apache' | 'kubeflow'; image: string; mainApplicationFile?: string; namespace: string; serviceAccount: string; executorInstances: number; maxRunSeconds?: number; executionKind?: 'approved-app' | 'notebook-python-batch' }
+export interface ExecutionBinding extends ExecutionProfile { id: string; workspaceId: string; name: string }
+export type RunState = 'queued' | 'submitting' | 'running' | 'succeeded' | 'failed' | 'cancel_requested' | 'cancelled' | 'unknown';
+export interface RunEvent { at: string; state: RunState; message: string }
+export interface NotebookSelection { id: string; revision: number }
+export interface NotebookSnapshot extends NotebookSelection { sha256: string; cellIds: string[]; bytes: number }
+export interface ExecutionRun {
+  id: string; workspaceId: string; bindingId: string; revision: number; createdAt: string; updatedAt: string; observedAt?: string;
+  submittedBy: { issuer: string; subject: string }; profile: ExecutionProfile; state: RunState; cancelRequested: boolean;
+  kubernetesName: string; kubernetesUid?: string; message: string; events: RunEvent[]; eventsTruncated: boolean;
+  notebook?: NotebookSnapshot; sourceArtifact?: { name: string; uid?: string; state: 'pending' | 'ready' | 'cleanup_pending' | 'deleted' };
+}
+export interface RunIntent { bindingId: string; idempotencyKey: string; notebook?: NotebookSelection }
+export interface RunLogs { text: string; truncated: boolean }
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number) { super(message); this.name = 'ApiError'; }
@@ -44,7 +58,13 @@ export const api = {
   saveNotebook: (workspaceId: string, draft: Pick<Notebook, 'name' | 'kind' | 'cells'>, id?: string, revision?: number) => request<Notebook>(`/workspaces/${encodeURIComponent(workspaceId)}/notebooks${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', body: JSON.stringify({ ...draft, ...(id ? { revision } : {}) }) }),
   modules: () => request<{ items: Module[] }>('/modules'),
   plan: (namespace: string, modules: { id: string; mode: 'managed' | 'external'; endpoint?: string }[]) => request<DeploymentPlan>('/deployment-plans', { method: 'POST', body: JSON.stringify({ namespace, cloud: 'aws', modules }) }),
-  preview: (workspaceId: string, body: { name: string; operator: string; image: string; mainApplicationFile: string; serviceAccount: string; namespace: string; executorInstances: number }) => request<ManifestPreview>(`/workspaces/${encodeURIComponent(workspaceId)}/spark-applications/preview`, { method: 'POST', body: JSON.stringify(body) }),
+  preview: (workspaceId: string, body: { name: string; operator: string; image: string; mainApplicationFile: string; serviceAccount: string; namespace: string; executorInstances: number; maxRunSeconds?: number }) => request<ManifestPreview>(`/workspaces/${encodeURIComponent(workspaceId)}/spark-applications/preview`, { method: 'POST', body: JSON.stringify(body) }),
+  executionBindings: (workspaceId: string, signal?: AbortSignal) => request<{ items: ExecutionBinding[] }>(`/workspaces/${encodeURIComponent(workspaceId)}/execution-bindings`, { signal }),
+  runs: (workspaceId: string, signal?: AbortSignal) => request<{ items: ExecutionRun[] }>(`/workspaces/${encodeURIComponent(workspaceId)}/runs`, { signal }),
+  run: (workspaceId: string, id: string, signal?: AbortSignal) => request<ExecutionRun>(`/workspaces/${encodeURIComponent(workspaceId)}/runs/${encodeURIComponent(id)}`, { signal }),
+  submitRun: (workspaceId: string, intent: RunIntent, signal?: AbortSignal) => request<ExecutionRun>(`/workspaces/${encodeURIComponent(workspaceId)}/runs`, { method: 'POST', body: JSON.stringify(intent), signal }),
+  cancelRun: (workspaceId: string, id: string, signal?: AbortSignal) => request<ExecutionRun>(`/workspaces/${encodeURIComponent(workspaceId)}/runs/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}', signal }),
+  runLogs: (workspaceId: string, id: string, signal?: AbortSignal) => request<RunLogs>(`/workspaces/${encodeURIComponent(workspaceId)}/runs/${encodeURIComponent(id)}/logs`, { signal }),
 };
 
 export function message(error: unknown): string { return error instanceof Error ? error.message : 'Something went wrong. Please try again.'; }

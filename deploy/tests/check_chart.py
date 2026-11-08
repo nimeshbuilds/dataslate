@@ -131,6 +131,9 @@ def main():
     assert issuer["value"] == "https://identity.example.com:8443/realms/dataslate"
     print("PASS custom HTTPS and PostgreSQL ports: rendered policy matches explicit endpoint configuration")
 
+    from check_execution_chart import check_execution_chart
+    check_execution_chart(run, external_args)
+
     # Native ClusterIP/no ingress profile must be usable without exposing the workspace.
     docs = list(yaml.safe_load_all(run([*external_args, "--set", "ingress.enabled=false"])))
     assert not any(d and d["kind"] == "Ingress" for d in docs)

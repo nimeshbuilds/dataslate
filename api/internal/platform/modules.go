@@ -23,8 +23,8 @@ func Modules() []Module {
 	items := []Module{
 		{ID: "postgres", Name: "PostgreSQL", Category: "platform", Implementation: "foundation", Description: "Implemented durable workspace and notebook storage; managed deployment requires a qualified PostgreSQL operator."},
 		{ID: "identity", Name: "Identity", Category: "security", Implementation: "foundation", Description: "Implemented OIDC JWT verification and workspace claims; managed identity-provider lifecycle is planned."},
-		{ID: "spark-operator", Name: "Spark operator", Category: "compute", Description: "Apache and Kubeflow manifest preview adapters; cluster discovery, submission and reconciliation are planned."},
-		{ID: "spark", Name: "Apache Spark", Category: "compute", Dependencies: []string{"spark-operator"}, Description: "Planned isolated interactive and batch Spark runtimes."},
+		{ID: "spark-operator", Name: "Spark operator", Category: "compute", Implementation: "foundation", Description: "Apache operator discovery and durable batch submission, observation and cancellation are implemented; Kubeflow remains preview-only. Installation and cloud qualification are separate."},
+		{ID: "spark", Name: "Apache Spark", Category: "compute", Implementation: "foundation", Dependencies: []string{"spark-operator"}, Description: "Opt-in approved applications and saved Python notebook batches with immutable source provenance. Interactive sessions, lake connectors and cloud runtime qualification remain separate work."},
 		{ID: "unity-catalog", Name: "Unity Catalog", Category: "governance", Dependencies: []string{"postgres", "identity"}, Description: "Planned catalog and cloud credential integration; full governance qualification remains required."},
 		{ID: "delta", Name: "Delta Lake", Category: "storage", Dependencies: []string{"spark", "unity-catalog"}, Description: "Planned Delta table publication and qualified Snappy Parquet ingestion."},
 		{ID: "zookeeper", Name: "ZooKeeper", Category: "platform", Description: "Planned coordination for highly available Kyuubi engines."},

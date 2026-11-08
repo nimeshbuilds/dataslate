@@ -83,3 +83,24 @@ networkPolicy:
   postgresEgressCidrs: []
   # Must match the port in the external database URL Secret; managed CNPG uses 5432.
   postgresPort: 5432
+
+# Execution is opt-in. This does not adopt or install an operator or compute namespace.
+execution:
+  enabled: false
+  operatorAccepted: false
+  runtimePolicyAccepted: false
+  # Keep namespaces until their runs are drained; removing a binding must not revoke cancellation RBAC.
+  namespaces: []
+  bindings: []
+  kubernetesEgressCidrs: []
+  kubernetesPort: 443
+  controller:
+    replicas: 2
+    image:
+      repository: dataslate-controller
+      tag: 0.1.0-foundation
+      digest: ""
+      pullPolicy: IfNotPresent
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 512Mi}

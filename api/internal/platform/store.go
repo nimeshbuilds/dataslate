@@ -18,17 +18,26 @@ type Store interface {
 	SaveNotebook(context.Context, string, string, NotebookInput) (Notebook, error)
 	DeleteNotebook(context.Context, string, string, int) error
 	Revisions(context.Context, string, string) ([]Notebook, error)
+	CreateRun(context.Context, Run, string, string) (Run, bool, error)
+	Runs(context.Context, string, ExecutionSubject) ([]Run, error)
+	Run(context.Context, string, string, ExecutionSubject) (Run, error)
+	RunSource(context.Context, string, string, ExecutionSubject) (RunSource, error)
+	CancelRun(context.Context, string, string, ExecutionSubject) (Run, error)
+	AcquireRun(context.Context, string, time.Duration) (Run, RunLease, error)
+	AdvanceRun(context.Context, RunLease, RunUpdate) (Run, error)
 }
 type MemoryStore struct {
 	mu         sync.RWMutex
 	workspaces map[string]Workspace
 	notebooks  map[string]Notebook
 	history    map[string][]Notebook
+	executions map[string]*memoryExecution
+	runKeys    map[string]string
 }
 
 func NewMemoryStore() *MemoryStore {
 	now := time.Now().UTC()
-	return &MemoryStore{workspaces: map[string]Workspace{"default": {Resource: Resource{ID: "default", CreatedAt: now, UpdatedAt: now, Revision: 1}, Name: "Development workspace", Slug: "default"}}, notebooks: map[string]Notebook{}, history: map[string][]Notebook{}}
+	return &MemoryStore{workspaces: map[string]Workspace{"default": {Resource: Resource{ID: "default", CreatedAt: now, UpdatedAt: now, Revision: 1}, Name: "Development workspace", Slug: "default"}}, notebooks: map[string]Notebook{}, history: map[string][]Notebook{}, executions: map[string]*memoryExecution{}, runKeys: map[string]string{}}
 }
 func (*MemoryStore) Ready(context.Context) error { return nil }
 func (*MemoryStore) Mode() string                { return "memory" }

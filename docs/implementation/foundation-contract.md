@@ -2,7 +2,7 @@
 
 Product: **DataSlate**. Assistant: **Sylon**. Initial validation target: AWS EKS and customer-owned S3. Deployment serves teams in one organization. Distribution: open source with paid support/hosting. Broader data, BI, ML, agents, serving, apps, sharing and operations are committed product scope; status must distinguish implemented code, tested adapters and production-qualified integration.
 
-This contract coordinates the first implementation. Never simulate a successful query, Spark submission, connection verification or assistant response. Unsupported execution returns a typed capability error and the UI explains the missing integration. No live cluster is available yet. API generation/validation is not execution.
+This contract records the first implementation. The [batch execution contract](execution-contract.md) extends the run, status and controller resources; where its definitions differ, use that later contract. Never simulate a successful query, Spark submission, connection verification or assistant response. Unsupported execution returns a typed capability error and the UI explains the missing integration. Approved immutable applications and explicitly granted saved Python notebook batches use the durable API and Apache operator adapter described in that contract. Interactive notebook sessions, SQL and assistant execution remain separate integrations. Live EKS/S3 qualification is a separate release gate. API generation/validation is not execution.
 
 ## Repository ownership
 
@@ -22,13 +22,15 @@ Public endpoints:
 
 Authenticated endpoints:
 
-- `GET /api/v1/status` -> `{product:"DataSlate", assistant:"Sylon", phase:"foundation", authMode, persistence:"memory"|"postgres", executionEnabled:false}`.
+- `GET /api/v1/status` -> `{product:"DataSlate", assistant:"Sylon", phase:"foundation", authMode, persistence:"memory"|"postgres", executionEnabled:boolean, executionMode:"approved-batch"|"disabled", notebookExecutionEnabled:boolean}`. Configured bindings determine these flags; notebook execution means saved Python batch capability. They do not assert backend health or grant the caller execution access.
 - `GET /api/v1/workspaces`; `POST /api/v1/workspaces` body `{name, slug}`; create requires platform administrator.
 - `GET /api/v1/workspaces/{workspaceId}/notebooks`; `POST` body `{name, kind:"notebook"|"sql", cells:[{id,language:"python"|"sql",source}]}`.
 - `GET /api/v1/workspaces/{workspaceId}/notebooks/{id}`; `PUT` body `{name,kind,cells,revision}`. Editor/admin only for writes. No execution outputs in shared notebook documents.
 - `GET /api/v1/modules` -> `{items:[{id,name,category,implementation:"foundation"|"planned",description,dependencies:[string],modes:["managed","external"],enabledByDefault:boolean}]}`.
 - `POST /api/v1/deployment-plans` body `{namespace, cloud:"aws", modules:[{id,mode:"managed"|"external",endpoint?}]}` -> `{cloud,namespace,actions:[{moduleId,mode,action,verification:"required"}],warnings:[string],executable:false}`. Validate required dependencies/cycles and HTTPS endpoint requirements. No network probe or install side effect. Default application core is implicit; optional modules are explicit.
 - `POST /api/v1/workspaces/{workspaceId}/spark-applications/preview` body `{name,operator:"apache"|"kubeflow",image,mainApplicationFile,serviceAccount,namespace,executorInstances}` -> `{manifest:object,warnings:[string],submitted:false}`. JSON Kubernetes manifest for the precise CRD API. Preview only. Image/URI/name/namespace validation; no arbitrary pod fields. Authenticated workspace editor required. The output must explain runtime compatibility and admission/identity checks remain necessary before submission.
+
+Approved batch bindings, runs, events, cancellation and driver logs use the same workspace routes and owner-scoped authorization documented in [the execution contract](execution-contract.md). Their exact transport schemas are in OpenAPI.
 
 The backend owns `api/openapi.yaml` and documents any precise model additions; notify the frontend/root of contract changes.
 
@@ -48,4 +50,4 @@ Use these stable IDs consistently: `postgres`, `spark-operator`, `spark`, `unity
 
 ## Validation
 
-API: authorization matrix, cross-workspace ID access, stale revisions, invalid manifests, no false execution, dependency validation, production configuration fail-closed; test real handlers, not implementation mirrors. UI: save/reopen a notebook, API error and offline states, planned capability disclosure, no simulated query/AI results. Helm: lint/render production and managed/external examples; resource requests, security contexts, probes, persistent state, secrets by reference. Live cloud/OIDC/operator tests remain explicit gates until infrastructure exists.
+API: authorization matrix, cross-workspace ID access, stale revisions, invalid manifests, no false execution, dependency validation, production configuration fail-closed; test real handlers, not implementation mirrors. Approved batch execution additionally requires idempotency, concurrent capacity enforcement, durable leases/fencing, grant revocation, ambiguous submission recovery, ownership-verified logs and cancellation tests. UI: save/reopen a notebook, API error and offline states, planned capability disclosure, no simulated query/AI results. Helm: lint/render production and managed/external examples; resource requests, security contexts, probes, persistent state, secrets by reference. Live cloud/OIDC/operator tests remain explicit gates until infrastructure exists.

@@ -1,6 +1,6 @@
 # DataSlate API foundation
 
-A real Go control plane for workspace membership, persistent notebook/SQL documents, revision conflicts and history, deployment dependency planning, and two distinct SparkApplication preview compilers. It does **not** execute Spark, SQL, ingestion, models or Sylon. The broad module catalog is engineering scope and implementation status, not a list of installed backends.
+A real Go control plane for workspace membership, persistent notebook/SQL documents, revision conflicts and history, deployment dependency planning, and two distinct SparkApplication preview compilers. An opt-in durable controller submits approved immutable Python applications or exact saved Python notebook snapshots to the Apache Spark operator. Interactive kernels, SQL execution, ingestion connectors, models and Sylon remain separate integration work. The broad module catalog is engineering scope and implementation status, not a list of installed backends.
 
 ## Run
 
@@ -32,6 +32,8 @@ Configure secrets through the deployment environment, not command-line flags. Mi
 | `DATASLATE_OIDC_ISSUER` | HTTPS issuer URL used for OIDC discovery |
 | `DATASLATE_OIDC_AUDIENCE` | API access-token audience; must differ from browser client ID |
 | `DATASLATE_OIDC_CLIENT_ID` | Public browser OIDC client identifier |
+| `DATASLATE_EXECUTION_BINDINGS_FILE` | Optional mounted JSON policy for immutable applications and issuer-qualified grants |
+| `DATASLATE_EXECUTION_NAMESPACES` | Explicit space-separated Kubernetes execution namespace allowlist, retained until runs are drained |
 | `DATASLATE_OIDC_SCOPES` | Space-separated browser scopes; defaults to `openid profile`; configure the provider-specific API scope too |
 
 The production connector rejects unverified/disabled TLS and insecure connection fallbacks. pgx respects `PGSSLMODE` and `PGSSLROOTCERT`; explicit DSN options override environment settings, so an insecure override fails startup. The migration command requires the database configuration only, not an identity-provider connection. Serve initializes OIDC discovery and fails closed on discovery/configuration errors.
@@ -62,9 +64,10 @@ Creation returns the new workspace ID. The administrator must assign membership 
 
 - `DELETE /api/v1/workspaces/{workspaceId}/notebooks/{id}?revision=N` deletes the document and its saved revision history; optimistic revision is mandatory.
 - `GET /api/v1/workspaces/{workspaceId}/notebooks/{id}/revisions` returns `{items:[Notebook]}`.
-- `POST .../runs` and `POST .../sylon/messages` return HTTP 501 `capability_unavailable`, after workspace authorization. No execution is simulated.
+- `GET .../execution-bindings` and the run create/list/get/cancel/events/logs routes implement [approved batch execution](../docs/implementation/execution-contract.md). Submission is unavailable until explicit bindings are configured.
+- `POST .../sylon/messages` returns HTTP 501 `capability_unavailable`, after workspace authorization. No assistant response is simulated.
 
-Every notebook mutation validates IDs, document kind, unique cell IDs and allowed languages. SQL documents contain SQL cells only. Cell sources are capped at 256 KiB, documents at 200 cells, requests at 1 MiB. Unknown JSON fields and multiple JSON values are rejected; user outputs are not stored in shared notebook documents. Revisions are atomic and retained until document deletion. No server execution, notebook output renderer or Python kernel is present yet.
+Every notebook mutation validates IDs, document kind, unique cell IDs and allowed languages. SQL documents contain SQL cells only. Cell sources are capped at 256 KiB, documents at 200 cells, requests at 1 MiB. Unknown JSON fields and multiple JSON values are rejected; user outputs are not stored in shared notebook documents. Document revisions are atomic and retained until document deletion. A saved Python batch run retains its own independent source snapshot after later edits/deletion. It compiles cells separately with stable traceback filenames and shared globals in one fresh batch process, capped at 256 KiB of generated source. Interactive kernels and rich result delivery are not implemented yet.
 
 The planner supports the initial `aws` profile, requires explicit optional dependencies, orders them topologically and rejects unknown modules, duplicates, modes and cycles. External HTTPS API/management endpoint syntax may be supplied; absence is a warning requiring later coordinates and secret references. It does not probe networks or perform an installation. PostgreSQL and identity are implicit core dependencies. Managed versus external is planned ownership, not existing-service detection.
 
@@ -73,7 +76,7 @@ Spark previews currently support `.py` entrypoints only, with `local:///`, `s3:/
 - [Apache operator 1.0.0 Python example](https://github.com/apache/spark-kubernetes-operator/blob/1.0.0/examples/pi-python.yaml): `spark.apache.org/v1`, `spec.pyFiles`, `spec.runtimeVersions`, `spec.sparkConf`.
 - [Kubeflow operator 2.5.2 CRD](https://github.com/kubeflow/spark-operator/blob/v2.5.2/config/crd/bases/sparkoperator.k8s.io_sparkapplications.yaml): `sparkoperator.k8s.io/v1beta2`, `spec.type: Python`, `spec.mainApplicationFile`, `spec.driver` and `spec.executor`.
 
-The preview accepts names and service-account choices for review but does not authorize their future use. Before submission exists, bind workspaces to approved namespaces, runtime images and identities, add admission restrictions, validate against the installed CRD, and establish idempotent submission/reconciliation. The API service account needs no Kubernetes API access in this foundation.
+The preview accepts names and service-account choices for review but does not authorize their future use. Batch submission uses administrator-controlled bindings, digest-pinned images, issuer-qualified execution grants and durable reconciliation. Notebook bindings explicitly authorize arbitrary Python under their engineering workload identity; they cannot provide row-level protection from users who have raw data credentials. Namespace admission, workload identity and a compatible runtime require separate qualification. The API is unprivileged with execution disabled; when enabled it receives read-only SparkApplication/Pod/log access in explicit namespaces. Only the separate controller can create/delete SparkApplications and manage protected notebook source ConfigMaps. API source inspection reads the owned PostgreSQL snapshot and needs no ConfigMap access.
 
 ## Verification
 
@@ -87,3 +90,10 @@ Tests cover real HTTP handlers, persisted memory documents, unknown fields and b
 To exercise PostgreSQL against an isolated test database, set `DATASLATE_TEST_DATABASE_URL` and run the same tests. The test migrates the database, creates unique test resources, opens a second connection to verify persistence, races revision updates and removes its test resources. Only that test constructor permits unverified TLS for an isolated CI PostgreSQL service. Without the variable, the integration test is explicitly skipped.
 
 API and workspace OCI image builds passed in the [November publication CI](../docs/implementation/validation.md). Deployed container startup remains unqualified. Other pending live gates include PostgreSQL/cloud CA setup, full external IdP login, EKS/S3 workload identity, Kubernetes server-side dry runs, Spark execution, UC/Ranger enforcement, external module installations, upgrades, restores and resource budgets. Production release depends on those gates.
+
+
+## Execution controller
+
+Build `go build ./cmd/dataslate-controller` or `api/ControllerDockerfile` with build context `api/`. Production requires verified PostgreSQL TLS, `DATASLATE_EXECUTION_BINDINGS_FILE`, and `DATASLATE_EXECUTION_NAMESPACES`. It uses Kubernetes projected service-account credentials, reopens the token file for rotation, verifies the CA and refuses redirects. No kubeconfig/cloud credential fallback is used. `/healthz` and `/readyz` listen on port 8081 by default (`DATASLATE_CONTROLLER_ADDR`). The API and controller use the same migrated database and policy file.
+
+The controller is the whole-job submission owner: unknown POST outcomes are reconciled without blindly retrying. Namespace quotas, admission and driver permissions remain separately administered. See the [execution contract](../docs/implementation/execution-contract.md) for policy revocation, cancellation, bounded queues/events and the limits of automated fixture tests.

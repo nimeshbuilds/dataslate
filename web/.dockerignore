@@ -3,3 +3,11 @@ dist
 test-results
 playwright-report
 *.tsbuildinfo
+.qa
+.tools
+.git
+.env
+.env.*
+*.log
+bin
+coverage

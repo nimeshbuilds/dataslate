@@ -3,7 +3,8 @@ import { ArrowRight, Blocks, BookOpen, ChevronDown, CircleHelp, Cloud, Code2, Da
 import { api, message } from './api';
 import type { Module, PlatformStatus, Workspace } from './api';
 import { useAuth } from './auth';
-import { ModuleExplorer, PlanBuilder, SparkPreview } from './Platform';
+import { ModuleExplorer, PlanBuilder } from './Platform';
+import { ComputeWorkspace } from './Runs';
 import { EmptyState, ErrorNotice, Logo, Modal, Pill, Spinner, SylonMark } from './ui';
 
 const Editor = lazy(() => import('./Editor').then((module) => ({ default: module.Editor })));
@@ -42,6 +43,7 @@ function WorkspaceApp({ active }: { active: boolean }) {
   const [workspaceId, setWorkspaceId] = useState('');
   const [modules, setModules] = useState<Module[]>([]);
   const [view, setView] = useState<View>('develop');
+  const [runTarget, setRunTarget] = useState<{ workspaceId: string; id: string }>();
   const [booting, setBooting] = useState(true);
   const [error, setError] = useState('');
   const [bootAttempt, setBootAttempt] = useState(0);
@@ -71,8 +73,8 @@ function WorkspaceApp({ active }: { active: boolean }) {
     return () => window.removeEventListener('beforeunload', unload);
   }, [dirty]);
 
-  function leaveEditor(action: () => void) { if (!dirty || window.confirm('Leave this notebook and discard unsaved edits?')) { setDirty(false); action(); } }
-  function go(next: View) { if (next !== view) leaveEditor(() => setView(next)); }
+  function leaveEditor(action: () => void) { if (!dirty || window.confirm('Leave this view and discard unsaved edits or unresolved submission details?')) { setDirty(false); action(); } }
+  function go(next: View) { if (next !== view) leaveEditor(() => { if (next === 'compute') setRunTarget(undefined); setView(next); }); }
   if (!active && !status) return null;
 
   return <div className="app-shell"><a href="#main-content" className="skip-link">Skip to workspace</a>
@@ -84,10 +86,10 @@ function WorkspaceApp({ active }: { active: boolean }) {
       {!active && auth.user && <div className="session-banner" role="alert"><span>Your session has expired. Download any unsaved documents before signing in again.</span><button className="button secondary compact" onClick={() => void auth.login()}>Sign in again</button></div>}
       <main id="main-content" className={`main-content ${view === 'develop' ? 'editor-main' : ''}`}>
         {error ? <div className="page-wrap"><ErrorNotice retry={() => setBootAttempt((n) => n + 1)}>{error}</ErrorNotice></div> : booting && !status ? <div className="page-loading"><Spinner label="Opening your workspace…" /></div> : !workspace && view === 'develop' ? <EmptyState icon={<BookOpen size={28} />} eyebrow="A FRESH START" title="Create your first workspace" description="A workspace keeps your team's notebooks, SQL and data projects together. Membership is checked by the API for every request." action={platformAdmin ? <button className="button primary" onClick={() => setCreateWorkspace(true)}><Plus size={16} />Create workspace</button> : <p className="muted">Ask your administrator to grant you workspace membership.</p>} /> : <>
-          {view === 'develop' && workspace && <Suspense fallback={<div className="page-loading"><Spinner label="Loading editor…" /></div>}><Editor key={workspace.id} workspace={workspace} onDirty={setDirty} openCompute={() => go('compute')} openSylon={() => setSylon(true)} /></Suspense>}
+          {view === 'develop' && workspace && <Suspense fallback={<div className="page-loading"><Spinner label="Loading editor…" /></div>}><Editor key={workspace.id} workspace={workspace} onDirty={setDirty} openCompute={() => go('compute')} openRun={(id) => leaveEditor(() => { setRunTarget({ workspaceId: workspace.id, id }); setView('compute'); })} openSylon={() => setSylon(true)} /></Suspense>}
           {view === 'data' && <ModuleExplorer eyebrow="DATA" title="Your lake, connected." description="Discover, govern and share data where it already lives. These integration definitions describe the platform's scope; they do not indicate installed services." modules={modules.filter((m) => collections.data.includes(m.id))} plan={() => { setAdminTab('plan'); go('administration'); }} />}
           {view === 'pipelines' && <ModuleExplorer eyebrow="PIPELINES" title="From source to trusted data." description="Batch ingestion, streaming, orchestration and maintenance belong in one execution experience. Backend execution adapters are still being implemented." modules={modules.filter((m) => collections.pipelines.includes(m.id))} plan={() => { setAdminTab('plan'); go('administration'); }} />}
-          {view === 'compute' && <SparkPreview workspace={workspace} />}
+          {view === 'compute' && (active ? <ComputeWorkspace key={workspace?.id} workspace={workspace} onDirty={setDirty} initialRunId={runTarget?.workspaceId === workspace?.id ? runTarget?.id : undefined} /> : <EmptyState icon={<ShieldCheck size={27} />} title="Sign in to view execution" description="Execution details are cleared when your session expires. Sign in again to continue." />)}
           {view === 'ai' && <ModuleExplorer eyebrow="SYLON & AI" title="Intelligence with context." description="Sylon, agents, experiments and model serving share governed data access. No models or agent runtimes are connected in this foundation build." modules={modules.filter((m) => collections.ai.includes(m.id))} plan={() => { setAdminTab('plan'); go('administration'); }} />}
           {view === 'administration' && <div className="admin-page"><div className="page-tabs" role="tablist" aria-label="Administration"><button role="tab" aria-selected={adminTab === 'modules'} onClick={() => setAdminTab('modules')}>Platform modules</button><button role="tab" aria-selected={adminTab === 'plan'} onClick={() => setAdminTab('plan')}>Deployment planner</button></div>{adminTab === 'modules' ? <ModuleExplorer eyebrow="ADMINISTRATION" title="One platform. Your infrastructure." description="Keep existing services where integration is supported, or declare DataSlate-managed components. Every backend must pass compatibility and security qualification before it can run here." modules={modules} plan={() => setAdminTab('plan')} /> : <PlanBuilder modules={modules} />}</div>}
         </>}
@@ -95,7 +97,7 @@ function WorkspaceApp({ active }: { active: boolean }) {
     </div>
     {sylon && <aside className="sylon-panel" aria-label="Sylon assistant"><div className="sylon-heading"><span className="sylon-symbol"><SylonMark size={25} /></span><div><strong>Sylon</strong><small>Workspace assistant</small></div><button className="icon-button" aria-label="Close Sylon" onClick={() => setSylon(false)}><X size={18} /></button></div><div className="sylon-content"><Pill tone="amber">Provider not connected</Pill><h2>A little context.<br />A lot of possibility.</h2><p>Sylon will help explore your data, write code and investigate errors within your permissions.</p><div className="assistant-capability"><Terminal size={17} /><div><strong>Work with your code</strong><span>Review suggestions before applying edits.</span></div></div><div className="assistant-capability"><Database size={17} /><div><strong>Ask your data</strong><span>Use governed queries and traceable sources.</span></div></div><div className="assistant-capability"><GitBranch size={17} /><div><strong>Build in-house agents</strong><span>Define tools, memory and explicit action policies.</span></div></div><div className="notice"><ShieldCheck size={17} /><p>Chat is unavailable until a provider adapter, tool policies and execution service are configured.</p></div><button className="button secondary full-width" onClick={() => { go('ai'); setSylon(false); }}>Explore AI components <ArrowRight size={15} /></button></div></aside>}
     {createWorkspace && <CreateWorkspace onClose={() => setCreateWorkspace(false)} onCreated={(created) => { setWorkspaces((items) => [...items, created]); leaveEditor(() => { setWorkspaceId(created.id); setView('develop'); }); setCreateWorkspace(false); }} />}
-    {about && <Modal title="About this build" onClose={() => setAbout(false)}><div className="modal-body"><Pill>DataSlate · foundation</Pill><p>This is working source code for the workspace, document API, identity boundary and configuration previews. It is not a running lakehouse yet.</p><dl className="details-list"><dt>Document storage</dt><dd>{status?.persistence ?? 'Unavailable'}</dd><dt>Authentication</dt><dd>{status?.authMode ?? 'Unavailable'}</dd><dt>Query / Spark execution</dt><dd>Not implemented</dd><dt>Initial cloud target</dt><dd>AWS EKS + S3</dd></dl><p className="muted">Module definitions and previews are planning metadata. No preview installs services, verifies connections, submits jobs or generates AI answers.</p></div></Modal>}
+    {about && <Modal title="About this build" onClose={() => setAbout(false)}><div className="modal-body"><Pill>DataSlate · foundation</Pill><p>This is working source code for the workspace, document API, identity boundary and configuration previews. It is not a running lakehouse yet.</p><dl className="details-list"><dt>Document storage</dt><dd>{status?.persistence ?? 'Unavailable'}</dd><dt>Authentication</dt><dd>{status?.authMode ?? 'Unavailable'}</dd><dt>Spark application execution</dt><dd>{status?.executionEnabled ? 'Approved bindings enabled' : 'No approved execution configured'}</dd><dt>Python notebook batches</dt><dd>{status?.notebookExecutionEnabled ? 'Engineering bindings enabled' : 'No engineering binding configured'}</dd><dt>Interactive / SQL execution</dt><dd>Integration required</dd><dt>Initial cloud target</dt><dd>AWS EKS + S3</dd></dl><p className="muted">Module definitions and previews are planning metadata. No preview installs services, verifies connections, submits jobs or generates AI answers.</p></div></Modal>}
   </div>;
 }
 

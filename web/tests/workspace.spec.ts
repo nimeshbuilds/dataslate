@@ -79,6 +79,7 @@ test('workspace switching changes document scope and creation is persisted', asy
 
 test('Spark previews use the chosen real API adapter without submitting', async ({ page }) => {
   await ready(page); await page.getByRole('button', { name: 'Compute', exact: true }).click();
+  await page.getByRole('tab', { name: 'Manifest preview', exact: true }).click();
   await page.getByRole('textbox', { name: 'Runtime image' }).fill('example.com/team/spark:4.1.3');
   await page.getByRole('textbox', { name: 'Main Python application URI' }).fill('s3://test-lake/jobs/analysis.py');
   await page.getByRole('button', { name: 'Preview manifest', exact: true }).click();

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"dataslate.local/api/internal/kubeexec"
 	"dataslate.local/api/internal/platform"
 )
 
@@ -66,10 +67,26 @@ func run() error {
 		}
 	}
 	api := &platform.Server{Config: cfg, Store: store, Auth: auth}
+	if cfg.ExecutionBindingsFile != "" {
+		backend, err := kubeexec.New(kubeexec.ConfigFromEnv())
+		if err != nil {
+			return err
+		}
+		if err = backend.ValidateBindings(cfg.ExecutionBindings); err != nil {
+			return err
+		}
+		check, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err = backend.Discover(check)
+		cancel()
+		if err != nil {
+			return errors.New("Apache Spark v1 discovery failed for configured execution bindings")
+		}
+		api.Backend = backend
+	}
 	server := &http.Server{Addr: cfg.Addr, Handler: api.Handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 25 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 64 * 1024}
 	done := make(chan error, 1)
 	go func() { done <- server.ListenAndServe() }()
-	slog.Info("DataSlate API started", "address", cfg.Addr, "authMode", cfg.AuthMode, "persistence", store.Mode(), "executionEnabled", false)
+	slog.Info("DataSlate API started", "address", cfg.Addr, "authMode", cfg.AuthMode, "persistence", store.Mode(), "executionEnabled", len(cfg.ExecutionBindings) > 0)
 	select {
 	case err := <-done:
 		if errors.Is(err, http.ErrServerClosed) {

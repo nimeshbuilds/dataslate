@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"dataslate.local/api/migrations"
@@ -43,8 +45,24 @@ func OpenPostgres(ctx context.Context, dsn string, requireTLS bool) (*PostgresSt
 func (s *PostgresStore) Close()     { s.pool.Close() }
 func (*PostgresStore) Mode() string { return "postgres" }
 func (s *PostgresStore) Ready(ctx context.Context) error {
-	var version int
-	return s.pool.QueryRow(ctx, "SELECT version FROM dataslate_schema_migrations WHERE version=1").Scan(&version)
+	var count, latest int
+	if err := s.pool.QueryRow(ctx, "SELECT count(*),COALESCE(max(version),0) FROM dataslate_schema_migrations").Scan(&count, &latest); err != nil {
+		return err
+	}
+	entries, err := migrations.Files.ReadDir(".")
+	if err != nil {
+		return err
+	}
+	expected := 0
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".sql") {
+			expected++
+		}
+	}
+	if count != expected || latest != expected {
+		return errors.New("database schema version does not match this binary")
+	}
+	return nil
 }
 func (s *PostgresStore) Migrate(ctx context.Context) error {
 	tx, err := s.pool.Begin(ctx)
@@ -58,21 +76,44 @@ func (s *PostgresStore) Migrate(ctx context.Context) error {
 	if _, err = tx.Exec(ctx, "CREATE TABLE IF NOT EXISTS dataslate_schema_migrations(version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"); err != nil {
 		return err
 	}
-	var exists bool
-	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM dataslate_schema_migrations WHERE version=1)").Scan(&exists); err != nil {
+	entries, err := migrations.Files.ReadDir(".")
+	if err != nil {
 		return err
 	}
-	if !exists {
-		sql, err := migrations.Files.ReadFile("001_initial.sql")
-		if err != nil {
+	expected := 0
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+		expected++
+		version, e := strconv.Atoi(strings.SplitN(entry.Name(), "_", 2)[0])
+		if e != nil || version != expected {
+			return errors.New("migration filenames must be contiguous and ordered")
+		}
+		var exists bool
+		if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM dataslate_schema_migrations WHERE version=$1)", version).Scan(&exists); err != nil {
 			return err
+		}
+		if exists {
+			continue
+		}
+		sql, e := migrations.Files.ReadFile(entry.Name())
+		if e != nil {
+			return e
 		}
 		if _, err = tx.Exec(ctx, string(sql)); err != nil {
 			return err
 		}
-		if _, err = tx.Exec(ctx, "INSERT INTO dataslate_schema_migrations(version) VALUES(1)"); err != nil {
+		if _, err = tx.Exec(ctx, "INSERT INTO dataslate_schema_migrations(version) VALUES($1)", version); err != nil {
 			return err
 		}
+	}
+	var latest int
+	if err = tx.QueryRow(ctx, "SELECT COALESCE(max(version),0) FROM dataslate_schema_migrations").Scan(&latest); err != nil {
+		return err
+	}
+	if latest > expected {
+		return errors.New("database schema is newer than this binary")
 	}
 	return tx.Commit(ctx)
 }

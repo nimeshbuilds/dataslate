@@ -11,7 +11,7 @@ import (
 )
 
 type Principal struct {
-	Subject                    string
+	Issuer, Subject            string
 	PlatformAdmin, Development bool
 	Workspaces                 map[string]string
 }
@@ -30,7 +30,7 @@ type Authenticator interface {
 type DevelopmentAuth struct{}
 
 func (DevelopmentAuth) Authenticate(context.Context, string) (Principal, error) {
-	return Principal{Subject: "development-admin", PlatformAdmin: true, Development: true}, nil
+	return Principal{Issuer: "development", Subject: "development-admin", PlatformAdmin: true, Development: true}, nil
 }
 
 type JWTAuth struct{ verifier *oidc.IDTokenVerifier }
@@ -62,7 +62,7 @@ func (a *JWTAuth) Authenticate(ctx context.Context, header string) (Principal, e
 	if token.Subject == "" || token.Expiry.IsZero() || token.Claims(&claims) != nil || claims.NotBefore > time.Now().Unix() || (claims.TokenUse != "" && claims.TokenUse != "access") {
 		return Principal{}, errors.New("invalid access token claims")
 	}
-	p := Principal{Subject: token.Subject, Workspaces: claims.Workspaces}
+	p := Principal{Issuer: token.Issuer, Subject: token.Subject, Workspaces: claims.Workspaces}
 	for _, r := range claims.Roles {
 		if r == "platform-admin" {
 			p.PlatformAdmin = true

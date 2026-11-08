@@ -11,7 +11,7 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 | Capability | Foundation/component | Required acceptance evidence | Initial track |
 |---|---|---|---|
 | Workspaces and team resources | Go API + PostgreSQL | Cross-workspace authorization; membership removal; durable revisions | Foundation |
-| Notebook and SQL source | React/Jupyter/CodeMirror | Save/reopen, conflicts, autosave, source/history, clean scheduled execution | Foundation |
+| Notebook and SQL source | React/Jupyter/CodeMirror | Save/reopen, conflicts, autosave, source/history, clean scheduled execution | Source editing/persistence and opt-in saved Python batch snapshots implemented; interactive execution/schedules remain separate |
 | Collaborative editing | Jupyter/Yjs | Concurrent changes, reconnect, document permissions without leaking outputs | Planned |
 | Interactive kernels | Jupyter + isolated pods | Attach/reconnect/stop, credential revocation, kernel failure recovery | Planned |
 | Notebook language and utility compatibility | Qualified Python/SQL/Scala/R kernels and native utility APIs | Per-runtime execution, widgets/parameters, files, package isolation and explicit unsupported proprietary APIs | Planned |
@@ -28,7 +28,7 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 
 | Capability | Foundation/component | Required acceptance evidence | Initial track |
 |---|---|---|---|
-| Spark application lifecycle | Apache/Kubeflow adapters | Create, observe, cancel, reconcile after controller restart; no duplicate commit | Manifest preview foundation |
+| Spark application lifecycle | Apache/Kubeflow adapters | Create, observe, cancel, reconcile after controller restart; no duplicate commit | Apache batch adapter and durable lifecycle implemented; local operator checks recorded; EKS/S3 qualification pending; Kubeflow preview only |
 | Spark SQL service | Kyuubi + Spark SQL + Ranger candidate | UC identifiers, user propagation, filtering/masking, denied escape paths | Planned; critical gate |
 | Spark Connect | Authenticated gateway + isolated server | No raw endpoint, correct identity, compatible APIs, session reconnect | Planned |
 | Native acceleration | Comet candidate | Differential correctness, denied access, fallback and measured performance | Planned |
@@ -84,7 +84,7 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 | Self-contained distribution | Managed qualified dependencies | Complete reproducible installation including optional self-hosted AI profile | Planned; chart foundation |
 | Existing-service integration | Adapter contracts | Permission/capability verification and explicit unsupported-mode reasons | Planning foundation |
 | Secrets/identity federation | Cloud stores/ESO/OpenBao + OIDC/WIF | Rotation, scoped mounts, secret references, no credentials in UI/logs | Configuration foundation |
-| Isolation and quotas | Kubernetes RBAC/admission/network policies | Driver cannot choose another SA/secret; quota and workload escape tests | Chart foundation |
+| Isolation and quotas | Kubernetes RBAC/admission/network policies | Driver cannot choose another SA/secret; quota and workload escape tests | Explicit compute profile with local admission/RBAC/network probes; cloud and malicious-code isolation qualification pending |
 | Audit and diagnostics | Product events + OTel | Actor/execution identity correlation, safe logs, access control, support bundle | Planned |
 | Backup/restore/upgrade | PostgreSQL + object artifacts + migration controller | Restore to clean cluster, compatible downgrade policy and deletion replay | Planned; migration foundation |
 | Operational PostgreSQL | CNPG/application databases | Resource binding, migrations, credentials and qualified HA/restore | Planned |

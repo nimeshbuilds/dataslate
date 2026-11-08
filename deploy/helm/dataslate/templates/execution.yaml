@@ -1,0 +1,173 @@
+{{- if .Values.execution.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataslate.fullname" . }}-execution
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+data:
+  bindings.json: {{ .Values.execution.bindings | toJson | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "dataslate.fullname" . }}-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+automountServiceAccountToken: true
+{{- range $namespace := .Values.execution.namespaces | sortAlpha }}
+{{- range $component := list "api" "controller" }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "dataslate.fullname" $ }}-{{ $component }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "dataslate.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: [spark.apache.org]
+    resources: [sparkapplications]
+    verbs: {{ if eq $component "controller" }}[get, create, delete]{{ else }}[get]{{ end }}
+{{- if eq $component "controller" }}
+  # Retain source cleanup permissions when bindings are revoked or removed.
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [get, create, patch, delete]
+{{- end }}
+{{- if eq $component "api" }}
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "dataslate.fullname" $ }}-{{ $component }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "dataslate.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "dataslate.fullname" $ }}-{{ $component }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "dataslate.fullname" $ }}-{{ $component }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dataslate.fullname" . }}-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.execution.controller.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        {{- include "dataslate.selector" . | nindent 8 }}
+        app.kubernetes.io/component: controller
+      annotations:
+        checksum/execution: {{ .Values.execution | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "dataslate.fullname" . }}-controller
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- include "dataslate.podSecurityContext" . | nindent 8 }}
+      {{- include "dataslate.scheduling" . | nindent 6 }}
+      containers:
+        - name: controller
+          image: {{ include "dataslate.image" .Values.execution.controller.image | quote }}
+          imagePullPolicy: {{ .Values.execution.controller.image.pullPolicy }}
+          securityContext:
+            {{- include "dataslate.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 8081, protocol: TCP}
+          env:
+            - {name: DATASLATE_CONTROLLER_ADDR, value: "0.0.0.0:8081"}
+            - {name: DATASLATE_EXECUTION_BINDINGS_FILE, value: /etc/dataslate/execution/bindings.json}
+            - {name: DATASLATE_EXECUTION_NAMESPACES, value: {{ include "dataslate.executionNamespaces" . | quote }}}
+            {{- include "dataslate.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.execution.controller.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: execution, mountPath: /etc/dataslate/execution, readOnly: true}
+      volumes:
+        - name: execution
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-execution
+        {{- include "dataslate.databaseVolume" . | nindent 8 }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dataslate.fullname" . }}-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: controller
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodLabels | nindent 14 }}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        {{- range .Values.execution.kubernetesEgressCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.execution.kubernetesPort }}}]
+    - to:
+        {{- if eq .Values.postgres.mode "managed" }}
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ include "dataslate.postgresName" . }}
+        {{- else }}
+        {{- range .Values.networkPolicy.postgresEgressCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.networkPolicy.postgresPort }}}]
+{{- end }}
+{{- end }}

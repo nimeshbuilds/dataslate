@@ -1,0 +1,17 @@
+{
+  "namespace": "dataslate-compute-example",
+  "serviceAccount": "approved-spark",
+  "operatorNamespace": "dataslate-operator",
+  "operatorServiceAccount": "spark-operator",
+  "images": ["registry.example.com/data/approved@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],
+  "apiCidrs": ["10.100.0.1/32"],
+  "apiPort": 443,
+  "dnsNamespace": "kube-system",
+  "dnsPodLabels": {"k8s-app": "kube-dns"},
+  "s3Cidrs": [],
+  "stsCidrs": [],
+  "irsaRoleArn": "",
+  "maxPods": 20,
+  "quotaCpu": 16,
+  "quotaMemoryGi": 32
+}

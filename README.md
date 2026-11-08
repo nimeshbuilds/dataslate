@@ -21,7 +21,7 @@
 
 DataSlate is being built as an open-source product with paid support/hosting as a distribution option. It targets teams within one organization, starting with **AWS EKS and S3**. It will support both explicitly managed dependencies and compatible existing services. The complete scope includes Spark, lakehouse governance, ingestion, workflows, notebooks, SQL, visualization, ML, serving, feature stores, agents, memory, apps and sharing.
 
-**Current maturity: implementation foundation.** This repository begins the real application and deployment code. Source editing/persistence, authorization, dependency planning and Spark manifest previews are separate from live Spark/SQL/AI execution. Planned capabilities are shown honestly; no query or assistant result is fabricated. This is not a production-qualified Databricks replacement yet.
+**Current maturity: implementation foundation.** Source editing/persistence, authorization and planning are implemented. An opt-in controller implements approved immutable Spark applications and saved Python notebook batches with durable run state. Notebook batches snapshot an exact saved revision and require an explicit engineering execution grant. Local operator tests and outstanding EKS/S3 qualification are recorded separately. Interactive sessions, SQL, rich results and AI execution remain under development. No query or assistant result is fabricated. This is not a production-qualified Databricks replacement yet.
 
 ## A familiar workspace, on infrastructure you control
 
@@ -29,10 +29,10 @@ DataSlate brings notebooks, SQL, catalogs, compute and AI into one product exper
 
 | Available in the foundation | Integration roadmap |
 |---|---|
-| Python/SQL source editors, saved notebooks and revision conflict handling | Spark execution, SQL sessions, result tables, charts and profiling |
+| Python/SQL source editors, revision conflict handling and immutable Python notebook batch snapshots | Interactive kernels, SQL sessions, result tables, charts and profiling |
 | Verified OIDC access tokens and workspace roles | Catalog governance, consistent row/column enforcement and lineage |
 | PostgreSQL persistence and managed/external dependency planning | S3/ADLS/GCS lake connections, Delta/Iceberg, ingestion and maintenance |
-| Apache/Kubeflow SparkApplication manifest previews | Workflow scheduling, streaming and operational compute controls |
+| Apache/Kubeflow previews; opt-in Apache Spark controller, run UI/SDK, source provenance and recovery | Cloud runtime qualification, workflow scheduling, streaming and operational compute controls |
 | Kubernetes Helm deployment scaffolding and Python SDK/CLI | Sylon gateways, agents, memory, ML, serving, apps and sharing |
 
 Each integration has its own validation gate. See the [capability inventory](docs/implementation/coverage.md) for the complete scope and the [validation record](docs/implementation/validation.md) for evidence.
@@ -41,8 +41,8 @@ Each integration has its own validation gate. See the [capability inventory](doc
 
 | Path | Responsibility |
 |---|---|
-| `api/` | Go control plane, PostgreSQL storage/migrations, OIDC authorization, module planner and Spark manifest compiler |
-| `web/` | React/TypeScript workspace, notebook/SQL source editor and installation/capability views |
+| `api/` | Go control plane, PostgreSQL storage/migrations, OIDC authorization, module planner, Spark manifest compiler and durable batch controller |
+| `web/` | React/TypeScript workspace, notebook/SQL source editor, batch run lifecycle and installation/capability views |
 | `sdk/python/` | Python SDK and `dataslate` CLI sharing the HTTP API |
 | `deploy/` | Helm, managed/external PostgreSQL configuration, EKS guidance and explicit upstream bootstrap |
 | `examples/` | API inputs; previews do not execute them |
@@ -87,6 +87,8 @@ make check-web
 ```
 
 Browser tests and Helm checks are described in their component directories. The CI workflow covers automated checks and isolated PostgreSQL where available; a CI configuration is not evidence that a remote run has occurred. [Validation status](docs/implementation/validation.md) distinguishes local checks from pending live-cloud tests.
+
+`make test-local` combines the source checks, PostgreSQL integration, browser tests and deployment validation after their prerequisites are installed. It requires an isolated `DATASLATE_TEST_DATABASE_URL` and does not provision infrastructure. The [first Spark notebook example](examples/python-batch-notebook.json) and [CLI execution guide](cli/README.md) exercise a deterministic aggregation through a configured engineering binding.
 
 ## Product scope and engineering gates
 

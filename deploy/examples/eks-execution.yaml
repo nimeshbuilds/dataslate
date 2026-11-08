@@ -1,0 +1,23 @@
+# Overlay eks-external.yaml. Replace placeholders and review prerequisites in
+# docs/implementation/execution-contract.md BEFORE setting both acknowledgments.
+# This example is not a qualified runtime; the digest below is intentionally a placeholder.
+execution:
+  enabled: true
+  operatorAccepted: false
+  runtimePolicyAccepted: false
+  kubernetesEgressCidrs: [10.0.0.0/16] # Replace with actual API endpoint/service CIDRs for your CNI.
+  namespaces: [dataslate-compute] # Retain during revocation/cancellation drain.
+  bindings:
+    - id: example-batch
+      workspaceId: default
+      name: Approved example application
+      operator: apache
+      image: registry.example.com/approved-spark@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      mainApplicationFile: local:///opt/dataslate/jobs/example.py
+      namespace: dataslate-compute
+      serviceAccount: approved-example-driver
+      executorInstances: 1
+      maxRunSeconds: 3600 # Cancellation requested after this elapsed time, including queue time.
+      allowedSubjects:
+        - issuer: https://identity.example.com/realms/dataslate
+          subject: replace-with-stable-oidc-subject

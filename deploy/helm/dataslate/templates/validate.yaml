@@ -39,3 +39,38 @@
 {{- if and .Values.podDisruptionBudget.enabled (or (ge (int .Values.podDisruptionBudget.minAvailable) (int .Values.api.replicas)) (ge (int .Values.podDisruptionBudget.minAvailable) (int .Values.web.replicas))) -}}
 {{- fail "PDB minAvailable must be lower than both deployment replica counts" -}}
 {{- end -}}
+
+{{- if .Values.execution.enabled -}}
+{{- if not (and .Values.execution.operatorAccepted .Values.execution.runtimePolicyAccepted) -}}
+{{- fail "execution requires operatorAccepted and runtimePolicyAccepted after reviewing operator compatibility, namespace isolation, quota, admission and workload identity" -}}
+{{- end -}}
+{{- if not (.Capabilities.APIVersions.Has "spark.apache.org/v1/SparkApplication") -}}
+{{- fail "execution requires the Apache spark.apache.org/v1/SparkApplication CRD; install or verify the operator separately" -}}
+{{- end -}}
+{{- if empty .Values.execution.namespaces -}}
+{{- fail "execution requires an explicit namespace allowlist retained until all runs are drained" -}}
+{{- end -}}
+{{- if and .Values.networkPolicy.enabled (empty .Values.execution.kubernetesEgressCidrs) -}}
+{{- fail "execution requires explicit Kubernetes API egress CIDRs" -}}
+{{- end -}}
+{{- range .Values.execution.namespaces -}}
+{{- if or (eq . $.Release.Namespace) (hasPrefix "kube-" .) (eq . "default") -}}
+{{- fail "execution requires dedicated namespaces outside the control-plane, default and kube-* namespaces" -}}
+{{- end -}}
+{{- end -}}
+{{- $identities := dict -}}
+{{- range .Values.execution.bindings -}}
+{{- if not (has .namespace $.Values.execution.namespaces) -}}{{- fail "binding namespace is outside execution.namespaces allowlist" -}}{{- end -}}
+{{- $key := printf "%s/%s" .workspaceId .id -}}
+{{- if hasKey $identities $key -}}{{- fail "execution binding IDs must be unique within a workspace" -}}{{- end -}}
+{{- $_ := set $identities $key true -}}
+{{- if or (eq .namespace $.Release.Namespace) (hasPrefix "kube-" .namespace) (eq .namespace "default") -}}
+{{- fail "compute bindings require a dedicated namespace outside the control-plane, default and kube-* namespaces" -}}
+{{- end -}}
+{{- range .allowedSubjects -}}
+{{- if ne .issuer $.Values.oidc.issuer -}}{{- fail "execution binding subject issuers must match oidc.issuer" -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- else -}}
+{{- if .Values.execution.bindings -}}{{- fail "execution bindings require execution.enabled=true" -}}{{- end -}}
+{{- end -}}

@@ -1,0 +1,21 @@
+{
+  "name": "Spark: a first verified result",
+  "kind": "notebook",
+  "cells": [
+    {
+      "id": "start-spark",
+      "language": "python",
+      "source": "from pyspark.sql import SparkSession, functions as F\nimport json\nspark = SparkSession.builder.appName('DataSlate first result').getOrCreate()\n"
+    },
+    {
+      "id": "transform",
+      "language": "python",
+      "source": "numbers = spark.range(100)\nsquares = numbers.select((F.col('id') * F.col('id')).alias('square'))\nresult = squares.agg(F.count('*').alias('rows'), F.sum('square').alias('sumSquares')).first().asDict()\n"
+    },
+    {
+      "id": "verify-result",
+      "language": "python",
+      "source": "expected = {'rows': 100, 'sumSquares': sum(number * number for number in range(100))}\nassert result == expected, f'Unexpected Spark result: {result!r}'\nprint('DATASLATE_EXAMPLE_RESULT ' + json.dumps(result, sort_keys=True), flush=True)\nspark.stop()\n"
+    }
+  ]
+}

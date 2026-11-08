@@ -17,7 +17,8 @@
     "migrations",
     "ingress",
     "podDisruptionBudget",
-    "networkPolicy"
+    "networkPolicy",
+    "execution"
   ],
   "properties": {
     "nameOverride": {
@@ -596,6 +597,284 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 65535
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "operatorAccepted",
+        "runtimePolicyAccepted",
+        "bindings",
+        "kubernetesEgressCidrs",
+        "kubernetesPort",
+        "controller",
+        "namespaces"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "operatorAccepted": {
+          "type": "boolean"
+        },
+        "runtimePolicyAccepted": {
+          "type": "boolean"
+        },
+        "bindings": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "workspaceId",
+              "name",
+              "operator",
+              "image",
+              "namespace",
+              "serviceAccount",
+              "executorInstances",
+              "allowedSubjects"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+              },
+              "workspaceId": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "operator": {
+                "enum": [
+                  "apache"
+                ]
+              },
+              "image": {
+                "type": "string",
+                "pattern": "^[^\\s@]+@sha256:[a-f0-9]{64}$"
+              },
+              "mainApplicationFile": {
+                "type": "string"
+              },
+              "namespace": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "maxLength": 63
+              },
+              "serviceAccount": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                "maxLength": 63
+              },
+              "executorInstances": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "allowedSubjects": {
+                "type": "array",
+                "minItems": 0,
+                "maxItems": 1000,
+                "uniqueItems": true,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "issuer",
+                    "subject"
+                  ],
+                  "properties": {
+                    "issuer": {
+                      "type": "string",
+                      "pattern": "^https://[^\\s/?#]+(?:/[^\\s?#]*)?$"
+                    },
+                    "subject": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    }
+                  }
+                }
+              },
+              "maxRunSeconds": {
+                "type": "integer",
+                "anyOf": [
+                  {
+                    "const": 0
+                  },
+                  {
+                    "minimum": 60,
+                    "maximum": 86400
+                  }
+                ]
+              },
+              "executionKind": {
+                "type": "string",
+                "enum": [
+                  "approved-app",
+                  "notebook-python-batch"
+                ],
+                "description": "Omitted means approved-app. notebook-python-batch is an explicit arbitrary Python engineering capability under the bound workload identity."
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "executionKind": {
+                      "const": "notebook-python-batch"
+                    }
+                  },
+                  "required": [
+                    "executionKind"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "mainApplicationFile": {
+                      "const": ""
+                    }
+                  }
+                },
+                "else": {
+                  "required": [
+                    "mainApplicationFile"
+                  ],
+                  "properties": {
+                    "mainApplicationFile": {
+                      "pattern": "^local:///[^\\s?#]+\\.py$"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "kubernetesEgressCidrs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F:.]+/[0-9]{1,3}$"
+          }
+        },
+        "kubernetesPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "controller": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "replicas",
+            "image",
+            "resources"
+          ],
+          "properties": {
+            "replicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "image": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "repository",
+                "tag",
+                "digest",
+                "pullPolicy"
+              ],
+              "properties": {
+                "repository": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "tag": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^$|^sha256:[a-f0-9]{64}$"
+                },
+                "pullPolicy": {
+                  "type": "string",
+                  "enum": [
+                    "Always",
+                    "IfNotPresent",
+                    "Never"
+                  ]
+                }
+              }
+            },
+            "resources": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "requests",
+                "limits"
+              ],
+              "properties": {
+                "requests": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cpu",
+                    "memory"
+                  ],
+                  "properties": {
+                    "cpu": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "memory": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                },
+                "limits": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cpu",
+                    "memory"
+                  ],
+                  "properties": {
+                    "cpu": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "memory": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "namespaces": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+            "maxLength": 63
+          }
         }
       }
     }

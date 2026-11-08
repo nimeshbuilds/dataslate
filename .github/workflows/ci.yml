@@ -40,6 +40,8 @@ jobs:
           DATASLATE_TEST_DATABASE_URL: postgres://dataslate:dataslate-ci-only@127.0.0.1:5432/dataslate_test?sslmode=disable
       - name: API image build
         run: docker build -t dataslate-api:ci api
+      - name: Execution controller image build
+        run: docker build -f api/ControllerDockerfile -t dataslate-controller:ci api
 
   sdk:
     runs-on: ubuntu-latest
@@ -95,6 +97,8 @@ jobs:
         run: python deploy/scripts/fetch-helm.py
       - name: Fetch verified upstream bootstrap charts
         run: python deploy/scripts/fetch-upstream.py
+      - name: Validate compute boundary generator
+        run: python -m unittest discover -s deploy/compute -p 'test_*.py' -v
       - name: Validate deployment profiles
         run: bash deploy/scripts/check.sh
         env:

@@ -28,15 +28,19 @@ Open `http://127.0.0.1:5173`. Vite forwards `/api/` to `http://127.0.0.1:8080`. 
 - Shared Table, Visualize, Profile and Execution tabs clearly explain the missing Result Service. They do not generate results or charts from fabricated data.
 - Module explorer with separate implementation and installation status.
 - Deployment plan generation, dependency inclusion, managed/external ownership and JSON export. The API performs validation; nothing is installed or probed.
-- Apache/Kubeflow SparkApplication preview generation and export. The API never submits the manifest.
+- Apache/Kubeflow SparkApplication preview generation and export. Previews have no submission side effects.
+- Approved application bindings and owner-scoped batch run history, observed timestamps, bounded events/logs and cancellation requests. Uncertain submissions retain their idempotency key for explicit recovery. Workspace/identity changes clear run data and stop old polling.
+- Saved Python notebook batch submission through an explicit engineering binding, with a review of the saved revision/runtime identity, dirty/conflict safeguards, immutable source provenance and a link to the actual run. Later document edits do not replace a pending request's source selection.
 - Sylon component information and a disconnected-provider state, with no simulated chat.
 - Responsive navigation, keyboard-addressable controls and dialogs with Escape/focus containment.
 
-Charts, actual notebook/SQL execution, kernel sessions, live compute, ingestion, pipelines, BI, ML, agents and provider administration still require their backend integrations. The component explorer is a product-scope view, not an installed-services dashboard.
+Charts, SQL execution, interactive notebook sessions/cell results, ingestion, pipelines, BI, ML, agents and provider administration still require their backend integrations. Saved Python batches start a fresh process and expose actual lifecycle/logs; they do not fill the result tabs. The component explorer is a product-scope view, not an installed-services dashboard.
 
 ## Browser identity
 
 `GET /api/v1/auth/config` determines development versus OIDC mode. Production uses `oidc-client-ts` Authorization Code + PKCE, callback `/auth/callback`, a public client ID and configured scopes. The API audience is sent as an authorization `audience` parameter; provider registration/scopes must actually mint a valid API access token. The backend independently verifies issuer, audience, signature, expiration and workspace claims. An ID token is never used as an API bearer token.
+
+Unresolved batch submissions retain their binding ID and idempotency key in this tab’s sessionStorage, scoped by issuer, subject and workspace. Notebook requests additionally retain the selected notebook ID/revision in a notebook-specific recovery scope. They survive a reload and are recovered only after an explicit action; they contain no token, source, result or log. A validated matching receipt clears the entry. Closing the tab may discard it, so inspect existing runs before submitting a replacement after a browser crash.
 
 Access/ID/refresh tokens remain in memory (`InMemoryWebStorage`); only temporary PKCE interaction state is in sessionStorage. No tokens are stored in localStorage, logged or added to URLs. Page reload requires another sign-in round trip; organization SSO may satisfy it. Automatic silent renewal and refresh-token persistence are deliberately disabled. A session-expiry banner preserves access to draft export before a new sign-in redirect. Unsaved document content itself is not persisted in browser storage.
 
@@ -63,7 +67,7 @@ npx playwright install chromium
 npm test
 ```
 
-The Playwright suite starts a real loopback Go API and Vite on ports 8080/5173, then shuts them down. Stop manually started servers on those ports before running it. It exercises save/reopen, real revision conflicts, offline recovery, workspace switching, both Spark operator previews, dependency planning, broader capability disclosure and mobile overflow. It does not mock successful backend actions. CI uses Playwright Chromium. To use an installed Chrome locally:
+The Playwright suite starts a real loopback Go API and Vite on ports 8080/5173, then shuts them down. Stop manually started servers on those ports before running it. It exercises save/reopen, real revision conflicts, offline recovery, workspace switching, both Spark operator previews, dependency planning, broader capability disclosure and mobile overflow. Notebook/source flows and disabled execution use the real API. Execution UX recovery, capacity, scope and revocation cases use explicitly labeled transport fixtures; those tests do not prove live Spark execution. CI uses Playwright Chromium. To use an installed Chrome locally:
 
 ```sh
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npm test

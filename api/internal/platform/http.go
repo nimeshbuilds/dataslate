@@ -15,9 +15,10 @@ import (
 )
 
 type Server struct {
-	Config Config
-	Store  Store
-	Auth   Authenticator
+	Config  Config
+	Store   Store
+	Auth    Authenticator
+	Backend ExecutionBackend
 }
 
 func (s *Server) Handler() http.Handler {
@@ -44,7 +45,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 200, map[string]any{"product": "DataSlate", "assistant": "Sylon", "phase": "foundation", "authMode": s.Config.AuthMode, "persistence": s.Store.Mode(), "executionEnabled": false})
+		writeJSON(w, 200, map[string]any{"product": "DataSlate", "assistant": "Sylon", "phase": "foundation", "authMode": s.Config.AuthMode, "persistence": s.Store.Mode(), "executionEnabled": len(s.Config.ExecutionBindings) > 0, "notebookExecutionEnabled": notebookExecutionEnabled(s.Config), "executionMode": executionMode(s.Config)})
 	})
 	api.HandleFunc("GET /api/v1/modules", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"items": Modules()}) })
 	api.HandleFunc("POST /api/v1/deployment-plans", func(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +69,14 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("DELETE /api/v1/workspaces/{workspaceId}/notebooks/{id}", s.deleteNotebook)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/notebooks/{id}/revisions", s.revisions)
 	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/spark-applications/preview", s.sparkPreview)
-	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/runs", s.unavailable)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/execution-bindings", s.executionBindings)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/runs", s.createRun)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs", s.listRuns)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}", s.getRun)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/runs/{id}/cancel", s.cancelRun)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/events", s.runEvents)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/logs", s.runLogs)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/source", s.runSource)
 	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/sylon/messages", s.unavailable)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "not_found", "API route is not implemented.")
@@ -327,4 +335,11 @@ func loopbackHost(authority string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
+}
+
+func executionMode(c Config) string {
+	if len(c.ExecutionBindings) > 0 {
+		return "approved-batch"
+	}
+	return "disabled"
 }

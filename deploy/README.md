@@ -2,7 +2,7 @@
 
 This directory deploys the **real DataSlate API and web application**, with verified OIDC, PostgreSQL persistence and a versioned migration Job. It supports an existing PostgreSQL database or a persistent CloudNativePG `Cluster`. The first target is **AWS EKS with S3**, serving teams within one organization.
 
-**This is an implementation foundation, not a completed lakehouse distribution.** The UI/API currently edit workspace resources and generate deployment plans and Spark manifest previews. They do not run Spark, SQL, ingestion or Sylon requests. See [the capability inventory](capabilities.md) for every broader module and its current status. Installing this chart does not install those modules.
+**This is an implementation foundation, not a completed lakehouse distribution.** The UI/API edit workspace resources, generate deployment plans/previews and, with execution explicitly enabled, queue approved immutable applications or saved Python notebook batches for the Spark controller. Interactive notebook sessions, SQL, ingestion connectors and Sylon remain separate integrations; an adapter implementation does not qualify its cloud runtime. See [the capability inventory](capabilities.md) for every broader module and its current status. Installing this chart does not install those modules.
 
 ## Ownership model
 
@@ -14,7 +14,7 @@ This directory deploys the **real DataSlate API and web application**, with veri
 | CNPG or Spark operator, their CRDs and cluster RBAC | A **separate administrator-owned release**, installed only after checking for an existing compatible installation |
 | S3 lake, IAM roles, EKS add-ons, storage classes, DNS/TLS | Administrator/cloud infrastructure; no automatic mutation from the application |
 
-The application service accounts have **no Kubernetes API roles and no mounted service-account tokens**. Preview generation needs no cluster credentials. A future submitter will receive narrowly scoped execution privileges after admission, workspace identity and cancellation/reconciliation tests exist. Never give the API cluster-admin to enable a planned module.
+With execution disabled, application service accounts have **no Kubernetes API roles and no mounted service-account tokens**. When execution is enabled, the API receives read-only SparkApplication/Pod/log access and the separate controller can create/delete SparkApplications in explicitly configured compute namespaces. Notebook execution additionally needs controller permissions for protected source ConfigMaps, with native admission restricting their mutation to that controller identity. There is no cluster-wide role, Secret access or Pod-creation permission for either application service. Preview generation still needs no cluster credentials. Never give the API cluster-admin.
 
 ## Prerequisites
 
@@ -109,3 +109,22 @@ The managed CNPG `Cluster` defaults to Helm's **keep** policy. Uninstalling the 
 - Before governed SQL: prove catalog/user identity, row filters, column masking and direct-file-access boundaries together.
 
 Passing static rendering does not satisfy these live gates.
+
+
+## Opt-in batch execution
+
+The [execution overlay](examples/eks-execution.yaml) is an intentionally incomplete example: supply real image digests, existing namespaces/service accounts, identity subjects and Kubernetes endpoint CIDRs. Set `execution.operatorAccepted` and `execution.runtimePolicyAccepted` only after verifying the candidate operator/runtime and the namespace protections. Those flags acknowledge administrator work; they do not install or prove security policies.
+
+The chart creates the controller Deployment, its service account, a shared bindings ConfigMap, and separate read-only API/write-controller Roles in each `execution.namespaces` entry. Existing compute namespaces, driver identities, Spark operator, CRDs, quotas, admission policies and lake IAM grants remain externally owned. The controller image is built with `docker build -f api/ControllerDockerfile api`.
+
+Keep `execution.namespaces` stable while revoking grants. An empty `allowedSubjects: []` revokes one binding; `bindings: []` revokes all bindings while preserving the controller. It rechecks policy during reconciliation and requests cancellation of affected queued/active runs. Keep execution, affected namespaces, source permissions and the configured controller identity until cancellation **and source-artifact cleanup** are verified. Removing permissions, disabling execution or uninstalling the release first can strand Spark applications or source ConfigMaps. Helm does not make deletion of a controller equivalent to cancelling its workloads.
+
+The API loads bindings at startup and rolls on the ConfigMap checksum; the controller reloads the mounted file. ConfigMap propagation and rolling replacement take time, and an already issued Kubernetes request cannot be recalled atomically. Revocation is a cancellation request, not a guarantee that no prior data write occurred. Existing run/log reads continue to require current workspace membership and exact owner identity. Full identity revocation and data-policy enforcement remain separate gates.
+
+`execution.kubernetesEgressCidrs` and `execution.kubernetesPort` configure NetworkPolicy for the actual API-server path seen by the selected CNI. The default client URL remains `https://kubernetes.default.svc:443`; the policy port may need the post-DNAT control-plane port. Verify both service and endpoint treatment on the real cluster. The controller has only DNS, database and Kubernetes API egress; no public OIDC/data-lake egress. The API additionally retains its configured IdP egress.
+
+The optional [compute boundary generator](compute/README.md) produces a reviewable restricted namespace, workload identity/RBAC, quota/limits, NetworkPolicies and native admission policies for one approved workload identity. It performs no installation or cloud mutation. Use a different namespace/profile for different data-access privileges.
+
+Notebook bindings use `executionKind: notebook-python-batch` and no caller-selected entrypoint. They authorize arbitrary saved Python under the approved workload identity. The compute profile must explicitly configure `notebookSources.controllerNamespace` and `notebookSources.controllerServiceAccount` to protect reserved source ConfigMaps from driver deletion/replacement. Source cleanup is owned by the DataSlate controller; do not rely on owner references or garbage collection to bypass that rule. A shared engineering namespace is a shared data-privilege boundary, not an isolation sandbox between mutually untrusted Python authors.
+
+Before enabling the runtime, apply and verify namespace quotas and limits, restricted Pod Security plus image/service-account/volume/secret admission constraints, network isolation and tightly scoped S3/KMS workload identity. A Spark driver that can create executor Pods needs admission to prevent selecting unrelated identities or secrets. The application queue cap bounds outstanding runs; it does not replace compute quotas or a spending limit. See [the execution contract](../docs/implementation/execution-contract.md) and [delivery gates](../docs/implementation/delivery-plan.md).

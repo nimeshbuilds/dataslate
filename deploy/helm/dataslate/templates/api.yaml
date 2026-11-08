@@ -18,13 +18,14 @@ spec:
         app.kubernetes.io/component: api
         dataslate.io/tier: backend
       annotations:
+        checksum/execution: {{ .Values.execution | toJson | sha256sum }}
         checksum/oidc: {{ .Values.oidc | toJson | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
       serviceAccountName: {{ include "dataslate.fullname" . }}-api
-      automountServiceAccountToken: false
+      automountServiceAccountToken: {{ .Values.execution.enabled }}
       securityContext:
         {{- include "dataslate.podSecurityContext" . | nindent 8 }}
       terminationGracePeriodSeconds: 30
@@ -46,6 +47,10 @@ spec:
             - {name: DATASLATE_OIDC_CLIENT_ID, value: {{ .Values.oidc.clientId | quote }}}
             - {name: DATASLATE_OIDC_SCOPES, value: {{ .Values.oidc.scopes | quote }}}
             {{- include "dataslate.databaseEnv" . | nindent 12 }}
+            {{- if .Values.execution.enabled }}
+            - {name: DATASLATE_EXECUTION_BINDINGS_FILE, value: /etc/dataslate/execution/bindings.json}
+            - {name: DATASLATE_EXECUTION_NAMESPACES, value: {{ include "dataslate.executionNamespaces" . | quote }}}
+            {{- end }}
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           startupProbe:
@@ -62,7 +67,15 @@ spec:
           volumeMounts:
             - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
             - {name: tmp, mountPath: /tmp}
+            {{- if .Values.execution.enabled }}
+            - {name: execution, mountPath: /etc/dataslate/execution, readOnly: true}
+            {{- end }}
       volumes:
+        {{- if .Values.execution.enabled }}
+        - name: execution
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-execution
+        {{- end }}
         {{- include "dataslate.databaseVolume" . | nindent 8 }}
         - name: tmp
           emptyDir: {sizeLimit: 64Mi}

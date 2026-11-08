@@ -4,3 +4,7 @@
 *.log
 bin
 coverage
+.qa
+.tools
+test-results
+playwright-report

@@ -93,3 +93,7 @@ affinity:
   {{- toYaml . | nindent 2 }}
 {{- end }}
 {{- end -}}
+
+{{- define "dataslate.executionNamespaces" -}}
+{{- .Values.execution.namespaces | sortAlpha | join " " -}}
+{{- end -}}
