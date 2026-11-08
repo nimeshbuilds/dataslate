@@ -15,7 +15,11 @@ func (s *Server) executionBindings(w http.ResponseWriter, r *http.Request) {
 	if p.Can(r.PathValue("workspaceId"), true) {
 		for _, b := range s.Config.ExecutionBindings {
 			if b.WorkspaceID == r.PathValue("workspaceId") && b.Allows(subject) {
-				out = append(out, map[string]any{"id": b.ID, "workspaceId": b.WorkspaceID, "name": b.Name, "operator": b.Operator, "image": b.Image, "mainApplicationFile": b.MainApplicationFile, "executionKind": b.Kind(), "namespace": b.Namespace, "serviceAccount": b.ServiceAccount, "executorInstances": b.ExecutorInstances, "maxRunSeconds": b.RunLimitSeconds()})
+				item := map[string]any{"id": b.ID, "workspaceId": b.WorkspaceID, "name": b.Name, "operator": b.Operator, "image": b.Image, "mainApplicationFile": b.MainApplicationFile, "executionKind": b.Kind(), "namespace": b.Namespace, "serviceAccount": b.ServiceAccount, "executorInstances": b.ExecutorInstances, "maxRunSeconds": b.RunLimitSeconds(), "ingestionStorage": b.IngestionStorage}
+				if b.IngestionStorage == nil {
+					delete(item, "ingestionStorage")
+				}
+				out = append(out, item)
 			}
 		}
 	}
@@ -53,15 +57,25 @@ func (s *Server) createRun(w http.ResponseWriter, r *http.Request) {
 		fail(w, 503, "execution_configuration_invalid", "Execution binding configuration is invalid.")
 		return
 	}
+	if (binding.Kind() == FileIngestionBatch) != (in.Pipeline != nil) {
+		fail(w, 422, "ingestion_not_executable", "Ingestion bindings require a saved pipeline selection; other bindings do not accept pipelines.")
+		return
+	}
 	if (binding.Kind() == NotebookPythonBatch) != (in.Notebook != nil) {
 		fail(w, 422, "notebook_not_executable", "Notebook bindings require a saved Python notebook selection; approved application bindings do not accept notebooks.")
 		return
 	}
 	run := newRun(r.PathValue("workspaceId"), *binding, subject)
+	if in.Pipeline != nil {
+		run.Ingestion = &IngestionProvenance{PipelineSelection: *in.Pipeline}
+	}
 	if in.Notebook != nil {
 		run.Notebook = &NotebookProvenance{NotebookSelection: *in.Notebook}
 	}
 	out, replay, err := s.Store.CreateRun(r.Context(), run, in.IdempotencyKey, runFingerprint(in))
+	if ingestionFailure(w, err) {
+		return
+	}
 	if errors.Is(err, ErrNotebookRevision) {
 		fail(w, 409, "notebook_revision_conflict", "The saved notebook revision changed. Save or reload and create a new submission intent.")
 		return

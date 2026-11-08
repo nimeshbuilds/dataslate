@@ -19,6 +19,10 @@ spec:
         dataslate.io/tier: backend
       annotations:
         checksum/execution: {{ .Values.execution | toJson | sha256sum }}
+        checksum/sql: {{ .Values.sql | toJson | sha256sum }}
+        checksum/sylon: {{ .Values.sylon | toJson | sha256sum }}
+        checksum/search: {{ .Values.search | toJson | sha256sum }}
+        checksum/catalog: {{ .Values.catalog | toJson | sha256sum }}
         checksum/oidc: {{ .Values.oidc | toJson | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
@@ -28,6 +32,11 @@ spec:
       automountServiceAccountToken: {{ .Values.execution.enabled }}
       securityContext:
         {{- include "dataslate.podSecurityContext" . | nindent 8 }}
+        {{- if or .Values.catalog.enabled .Values.search.enabled }}
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        {{- end }}
       terminationGracePeriodSeconds: 30
       {{- include "dataslate.scheduling" . | nindent 6 }}
       containers:
@@ -47,6 +56,18 @@ spec:
             - {name: DATASLATE_OIDC_CLIENT_ID, value: {{ .Values.oidc.clientId | quote }}}
             - {name: DATASLATE_OIDC_SCOPES, value: {{ .Values.oidc.scopes | quote }}}
             {{- include "dataslate.databaseEnv" . | nindent 12 }}
+            {{- if .Values.catalog.enabled }}
+            - {name: DATASLATE_CATALOG_BINDINGS_FILE, value: /etc/dataslate/catalog/bindings.json}
+            {{- end }}
+            {{- if .Values.sylon.enabled }}
+            - {name: DATASLATE_SYLON_BINDINGS_FILE, value: /etc/dataslate/sylon/bindings.json}
+            {{- end }}
+            {{- if .Values.search.enabled }}
+            - {name: DATASLATE_SEARCH_BINDINGS_FILE, value: /etc/dataslate/search/bindings.json}
+            {{- end }}
+            {{- if .Values.sql.enabled }}
+            - {name: DATASLATE_SQL_BINDINGS_FILE, value: /etc/dataslate/sql/bindings.json}
+            {{- end }}
             {{- if .Values.execution.enabled }}
             - {name: DATASLATE_EXECUTION_BINDINGS_FILE, value: /etc/dataslate/execution/bindings.json}
             - {name: DATASLATE_EXECUTION_NAMESPACES, value: {{ include "dataslate.executionNamespaces" . | quote }}}
@@ -67,10 +88,72 @@ spec:
           volumeMounts:
             - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
             - {name: tmp, mountPath: /tmp}
+            {{- if .Values.catalog.enabled }}
+            - {name: catalog, mountPath: /etc/dataslate/catalog, readOnly: true}
+            {{- range .Values.catalog.credentials }}
+            - name: catalog-credential-{{ .id }}
+              mountPath: {{ printf "/etc/dataslate/catalog-credentials/%s" .id | quote }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+            {{- if .Values.sylon.enabled }}
+            - {name: sylon, mountPath: /etc/dataslate/sylon, readOnly: true}
+            {{- end }}
+            {{- if .Values.search.enabled }}
+            - {name: search, mountPath: /etc/dataslate/search, readOnly: true}
+            {{- include "dataslate.searchCredentialMounts" .Values.search.credentials | nindent 12 }}
+            {{- end }}
+            {{- if .Values.sql.enabled }}
+            - {name: sql, mountPath: /etc/dataslate/sql, readOnly: true}
+            {{- end }}
             {{- if .Values.execution.enabled }}
             - {name: execution, mountPath: /etc/dataslate/execution, readOnly: true}
             {{- end }}
       volumes:
+        {{- if .Values.sylon.enabled }}
+        - name: sylon
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-sylon
+        {{- end }}
+        {{- if .Values.search.enabled }}
+        - name: search
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-search
+        {{- include "dataslate.searchCredentialVolumes" .Values.search.credentials | nindent 8 }}
+        {{- end }}
+        {{- if .Values.catalog.enabled }}
+        - name: catalog
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-catalog
+        {{- range .Values.catalog.credentials }}
+        - name: catalog-credential-{{ .id }}
+          projected:
+            defaultMode: 0440
+            sources:
+              {{- if .bearerTokenSecret }}
+              - secret:
+                  name: {{ .bearerTokenSecret.name | quote }}
+                  items:
+                    - {key: {{ .bearerTokenSecret.key | quote }}, path: token}
+              {{- else }}
+              - secret:
+                  name: {{ .oauth.clientSecret.name | quote }}
+                  items:
+                    - {key: {{ .oauth.clientSecret.key | quote }}, path: client-secret}
+              {{- end }}
+              {{- if .caSecret }}
+              - secret:
+                  name: {{ .caSecret.name | quote }}
+                  items:
+                    - {key: {{ .caSecret.key | quote }}, path: ca.crt}
+              {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.sql.enabled }}
+        - name: sql
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-sql
+        {{- end }}
         {{- if .Values.execution.enabled }}
         - name: execution
           configMap:

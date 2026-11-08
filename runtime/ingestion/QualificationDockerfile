@@ -1,0 +1,8 @@
+# Build the runtime first, then qualify that exact local image without Maven or pip.
+ARG RUNTIME_IMAGE=dataslate-ingestion:qualification
+FROM ${RUNTIME_IMAGE}
+USER 0
+COPY tests/ /opt/dataslate/qualification/tests/
+COPY qualify_image.py jars.lock.json /opt/dataslate/qualification/
+USER 185:185
+ENTRYPOINT ["python3", "/opt/dataslate/qualification/qualify_image.py"]

@@ -1,0 +1,59 @@
+import { request } from './api';
+import { sameNamespace, validNamespace } from './catalog-api';
+import type { SearchCatalog } from './search-api';
+
+export interface SylonNotebook { id: string; revision: number; cellId: string }
+export interface SylonSearch { bindingId: string; query: string; mode: 'lexical' | 'hybrid' }
+export interface SylonBinding { id: string; workspaceId: string; name: string; policyVersion: string; model: string; protocol: 'responses' | 'chat-completions'; maxOutputTokens: number; maxContextBytes: number; dataTransferAccepted: true; context: { notebookCellSource: boolean; catalogBindingIds: string[]; searchBindingIds: string[] } }
+export interface SylonConversation { id: string; workspaceId: string; bindingId: string; owner: { issuer: string; subject: string }; title: string; createdAt: string; updatedAt: string; revision: number }
+export interface SylonInput { idempotencyKey: string; prompt: string; notebook?: SylonNotebook; catalogs: SearchCatalog[]; search?: SylonSearch }
+export interface SylonCitation { id: string; kind: string; title: string; historical: boolean; notebook?: { id: string; revision: number; cellId?: string }; catalog?: SearchCatalog & { policyVersion: string }; searchDocumentId?: string }
+export interface SylonApplyInput { notebookId: string; revision: number; cellId: string }
+export interface SylonApplyReceipt { jobId: string; workspaceId: string; notebookId: string; cellId: string; previousRevision: number; revision: number; appliedAt: string }
+export interface SylonResult { answer: string; citations: string[]; proposedCode?: { language: 'python' | 'sql'; source: string } | null; usage?: { inputTokens: number; outputTokens: number; totalTokens: number } }
+export interface SylonJob { id: string; workspaceId: string; conversationId: string; bindingId: string; submittedBy: { issuer: string; subject: string }; createdAt: string; updatedAt: string; revision: number; policyVersion: string; state: 'queued' | 'preparing' | 'generating' | 'succeeded' | 'failed' | 'unknown' | 'cancel_requested' | 'cancelled'; message: string; dispatchStarted: boolean; cancelRequested: boolean; prompt: string; notebook?: SylonNotebook; catalogs: SearchCatalog[]; search?: SylonSearch; citations: SylonCitation[]; result?: SylonResult; applied?: SylonApplyReceipt }
+export interface SylonDetail { conversation: SylonConversation; messages: SylonJob[] }
+export interface SylonSeed { notebook: SylonNotebook; prompt: string; nonce: string }
+export interface SylonRecovery { conversationId?: string; message?: { conversationId: string; bindingId: string; input: SylonInput }; apply?: { jobId: string; conversationId: string; input: SylonApplyInput } }
+const base = (workspace: string) => `/workspaces/${encodeURIComponent(workspace)}/sylon`;
+export const sylonAPI = {
+  bindings: (ws: string, signal?: AbortSignal) => request<{ items: SylonBinding[] }>(`${base(ws)}/bindings`, { signal }),
+  conversations: (ws: string, signal?: AbortSignal) => request<{ items: SylonConversation[] }>(`${base(ws)}/conversations`, { signal }),
+  create: (ws: string, bindingId: string, title: string, signal?: AbortSignal) => request<SylonConversation>(`${base(ws)}/conversations`, { method: 'POST', body: JSON.stringify({ bindingId, title }), signal }),
+  detail: (ws: string, id: string, signal?: AbortSignal) => request<SylonDetail>(`${base(ws)}/conversations/${encodeURIComponent(id)}`, { signal }),
+  remove: (ws: string, id: string, signal?: AbortSignal) => request<void>(`${base(ws)}/conversations/${encodeURIComponent(id)}`, { method: 'DELETE', signal }),
+  send: (ws: string, id: string, input: SylonInput, signal?: AbortSignal) => request<SylonJob>(`${base(ws)}/conversations/${encodeURIComponent(id)}/messages`, { method: 'POST', body: JSON.stringify(input), signal }),
+  job: (ws: string, id: string, signal?: AbortSignal) => request<SylonJob>(`${base(ws)}/jobs/${encodeURIComponent(id)}`, { signal }),
+  cancel: (ws: string, id: string, signal?: AbortSignal) => request<{ jobId: string; workspaceId: string; state: SylonJob['state']; cancelRequested: boolean }>(`${base(ws)}/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}', signal }),
+  apply: (ws: string, id: string, input: SylonApplyInput, signal?: AbortSignal) => request<SylonApplyReceipt>(`${base(ws)}/jobs/${encodeURIComponent(id)}/apply`, { method: 'POST', body: JSON.stringify(input), signal }),
+};
+const record = (v: unknown): v is Record<string, unknown> => Boolean(v && typeof v === 'object' && !Array.isArray(v));
+const id = (v: unknown): v is string => typeof v === 'string' && /^[a-z0-9][a-z0-9-]{0,62}$/.test(v);
+const text = (v: unknown, max = 32768): v is string => typeof v === 'string' && new TextEncoder().encode(v).length <= max;
+const date = (v: unknown) => typeof v === 'string' && Number.isFinite(Date.parse(v));
+const revision = (v: unknown) => Number.isSafeInteger(v) && Number(v) >= 1;
+const owner = (v: unknown, issuer: string, subject: string) => record(v) && v.issuer === issuer && v.subject === subject;
+const resource = (v: Record<string, unknown>) => id(v.id) && revision(v.revision) && date(v.createdAt) && date(v.updatedAt);
+export const validSylonNotebook = (v: unknown): v is SylonNotebook => record(v) && id(v.id) && id(v.cellId) && revision(v.revision);
+const catalog = (v: unknown): v is SearchCatalog => record(v) && id(v.bindingId) && validNamespace(v.namespace) && text(v.name, 128) && Boolean(v.name);
+const search = (v: unknown): v is SylonSearch => record(v) && id(v.bindingId) && text(v.query, 4096) && Boolean(v.query.trim()) && ['lexical', 'hybrid'].includes(String(v.mode));
+export const sylonTerminal = (state: SylonJob['state']) => ['succeeded', 'failed', 'unknown', 'cancelled'].includes(state);
+export function validSylonBindings(v: unknown, ws: string): v is { items: SylonBinding[] } { return record(v) && Array.isArray(v.items) && v.items.every((b) => record(b) && id(b.id) && b.workspaceId === ws && text(b.name, 200) && text(b.policyVersion, 256) && Boolean(b.policyVersion) && text(b.model, 128) && ['responses', 'chat-completions'].includes(String(b.protocol)) && Number.isSafeInteger(b.maxOutputTokens) && Number(b.maxOutputTokens) > 0 && Number.isSafeInteger(b.maxContextBytes) && Number(b.maxContextBytes) >= 1024 && Number(b.maxContextBytes) <= 98304 && b.dataTransferAccepted === true && record(b.context) && typeof b.context.notebookCellSource === 'boolean' && Array.isArray(b.context.catalogBindingIds) && b.context.catalogBindingIds.every(id) && Array.isArray(b.context.searchBindingIds) && b.context.searchBindingIds.every(id)); }
+export function validConversation(v: unknown, ws: string, issuer: string, subject: string): v is SylonConversation { return record(v) && resource(v) && v.workspaceId === ws && id(v.bindingId) && owner(v.owner, issuer, subject) && text(v.title, 200); }
+export function validSylonInput(v: unknown): v is SylonInput { return record(v) && typeof v.idempotencyKey === 'string' && /^[A-Za-z0-9._:-]{8,128}$/.test(v.idempotencyKey) && text(v.prompt, 8192) && Boolean(v.prompt.trim()) && !v.prompt.includes('\0') && (v.notebook === undefined || validSylonNotebook(v.notebook)) && Array.isArray(v.catalogs) && v.catalogs.length <= 4 && v.catalogs.every(catalog) && (v.search === undefined || search(v.search)); }
+function sameSource(a: Pick<SylonInput, 'notebook' | 'catalogs' | 'search' | 'prompt'>, b: SylonInput) { return a.prompt === b.prompt && (!b.notebook ? !a.notebook : Boolean(a.notebook && a.notebook.id === b.notebook.id && a.notebook.cellId === b.notebook.cellId && a.notebook.revision === b.notebook.revision)) && a.catalogs.length === b.catalogs.length && a.catalogs.every((c, i) => c.bindingId === b.catalogs[i].bindingId && c.name === b.catalogs[i].name && sameNamespace(c.namespace, b.catalogs[i].namespace)) && (!b.search ? !a.search : a.search?.bindingId === b.search.bindingId && a.search.query === b.search.query && a.search.mode === b.search.mode); }
+export function validApply(v: unknown, ws: string, jobId: string, input: SylonApplyInput): v is SylonApplyReceipt { return record(v) && v.workspaceId === ws && v.jobId === jobId && v.notebookId === input.notebookId && v.cellId === input.cellId && v.previousRevision === input.revision && v.revision === input.revision + 1 && date(v.appliedAt); }
+export function validSylonJob(v: unknown, ws: string, issuer: string, subject: string, expected?: { id?: string; conversationId?: string; bindingId?: string; input?: SylonInput }): v is SylonJob {
+  if (!record(v) || !resource(v) || v.workspaceId !== ws || !id(v.bindingId) || !id(v.conversationId) || !owner(v.submittedBy, issuer, subject) || !text(v.policyVersion, 256) || !v.policyVersion || !['queued', 'preparing', 'generating', 'succeeded', 'failed', 'unknown', 'cancel_requested', 'cancelled'].includes(String(v.state)) || !text(v.message) || typeof v.dispatchStarted !== 'boolean' || typeof v.cancelRequested !== 'boolean' || !validSylonInput({ ...v, idempotencyKey: 'validation-key' }) || !Array.isArray(v.citations) || v.citations.length > 20 || !v.citations.every((c) => record(c) && text(c.id, 128) && text(c.kind, 128) && text(c.title, 1024) && typeof c.historical === 'boolean' && (c.notebook === undefined || record(c.notebook) && id(c.notebook.id) && revision(c.notebook.revision) && (c.notebook.cellId === undefined || id(c.notebook.cellId))) && (c.catalog === undefined || catalog(c.catalog) && record(c.catalog) && text(c.catalog.policyVersion, 256)))) return false;
+  const j = v as unknown as SylonJob;
+  if (expected?.id && j.id !== expected.id || expected?.conversationId && j.conversationId !== expected.conversationId || expected?.bindingId && j.bindingId !== expected.bindingId || expected?.input && !sameSource(j, expected.input)) return false;
+  if (j.result !== undefined) {
+    const r = j.result; if (j.state !== 'succeeded' || !record(r) || !text(r.answer) || !Array.isArray(r.citations) || !r.citations.every((c) => typeof c === 'string' && j.citations.some((item) => item.id === c)) || r.proposedCode != null && (!record(r.proposedCode) || !['sql', 'python'].includes(String(r.proposedCode.language)) || !text(r.proposedCode.source, 65536)) || r.usage !== undefined && (!record(r.usage) || !(['inputTokens', 'outputTokens', 'totalTokens'] as const).every((key) => Number.isSafeInteger(r.usage![key]) && Number(r.usage![key]) >= 0))) return false;
+  }
+  return !j.applied || Boolean(j.notebook && validApply(j.applied, ws, j.id, { notebookId: j.notebook.id, revision: j.notebook.revision, cellId: j.notebook.cellId }));
+}
+export const sylonStorageKey = (issuer: string, subject: string, ws: string) => `dataslate.sylon.${JSON.stringify([issuer, subject, ws])}`;
+export function restoreSylon(key: string): { value: SylonRecovery; error?: string } {
+  try { const raw = sessionStorage.getItem(key); if (!raw) return { value: {} }; const v = JSON.parse(raw); if (!record(v) || v.conversationId !== undefined && !id(v.conversationId) || v.message !== undefined && (!record(v.message) || !id(v.message.conversationId) || !id(v.message.bindingId) || !validSylonInput(v.message.input)) || v.apply !== undefined && (!record(v.apply) || !id(v.apply.jobId) || !id(v.apply.conversationId) || !record(v.apply.input) || !id(v.apply.input.notebookId) || !id(v.apply.input.cellId) || !revision(v.apply.input.revision))) throw new Error('Invalid recovery record'); return { value: v as SylonRecovery }; }
+  catch { return { value: {}, error: 'Assistant recovery storage is unavailable or invalid. Repair this browser record before submitting another request.' }; }
+}

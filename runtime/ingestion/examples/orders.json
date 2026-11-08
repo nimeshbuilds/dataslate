@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "pipelineId": "pipeline-orders",
+  "runId": "run-example",
+  "pipelineRevision": 1,
+  "source": {
+    "format": "json",
+    "uri": "s3://customer-lake/landing/orders/",
+    "schema": [
+      {"name": "order_id", "type": "long", "nullable": false},
+      {"name": "amount", "type": "double", "nullable": false},
+      {"name": "ordered_at", "type": "timestamp", "nullable": false}
+    ]
+  },
+  "destination": {"uri": "s3://customer-lake/delta/orders/"},
+  "checkpointUri": "s3://customer-lake/checkpoints/orders/",
+  "maxFilesPerTrigger": 100,
+  "timeoutSeconds": 3600
+}

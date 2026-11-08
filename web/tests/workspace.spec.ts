@@ -97,7 +97,7 @@ test('broader modules, Sylon limitations and dependency-checked external plans a
   await expect(page.getByRole('heading', { name: 'Model serving', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Sylon Your AI companion' }).click();
   await expect(page.getByText('Provider not connected', { exact: true })).toBeVisible();
-  await expect(page.getByText('Chat is unavailable until', { exact: false })).toBeVisible();
+  await expect(page.getByText('An administrator must enable an approved assistant profile', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Close Sylon' }).click();
   await page.getByRole('button', { name: 'Plan deployment', exact: true }).click();
   await page.getByRole('button', { name: 'MLflow', exact: true }).click();

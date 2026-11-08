@@ -1,0 +1,51 @@
+{
+  "scope": "native production controller processes with owned loopback PostgreSQL",
+  "controllers": [
+    {
+      "controller": "sql",
+      "sha256": "751b948410543fa3f70bcc39156467115612fe477c603c482ea39aa726d97773",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "search",
+      "sha256": "1a3f5f8f084de9af0a1f184fcf4f1607ba3b53e414346e8e6ca1779d6d109a7c",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "sylon",
+      "sha256": "ab8e173134252725a65760390e1ea456ff92506262721908fbed7447bbc2ddc7",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    }
+  ],
+  "schemaVersion": 8,
+  "runtimeDDLAndMigrationWritesDenied": true,
+  "notTested": [
+    "browser OIDC login",
+    "cloud services",
+    "complete Kubernetes install",
+    "HA/restore",
+    "live jobs"
+  ],
+  "qualifiedAt": "2026-11-08T03:49:08.020414+00:00",
+  "host": "Darwin/arm64",
+  "postgresVersion": "17.11 (Homebrew)",
+  "sourceSha256": "41f6fde1050bc1e345bced450b940ac19f168b88793dabd80ab63ff6ab2afc28",
+  "command": "python3 scripts/qualify-control-plane.py --fixture PRIVATE_OWNED_FIXTURE --binaries BUILT_BINARIES --output-dir FRESH_EVIDENCE_DIRECTORY --psql PSQL_BINARY",
+  "helperSha256": "2849d7cd3e0fb8ae584c64bea9e0d08840be70585aebdf63697b7f933c6c1201",
+  "optimizedPythonRejected": true
+}

@@ -15,7 +15,7 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 | Collaborative editing | Jupyter/Yjs | Concurrent changes, reconnect, document permissions without leaking outputs | Planned |
 | Interactive kernels | Jupyter + isolated pods | Attach/reconnect/stop, credential revocation, kernel failure recovery | Planned |
 | Notebook language and utility compatibility | Qualified Python/SQL/Scala/R kernels and native utility APIs | Per-runtime execution, widgets/parameters, files, package isolation and explicit unsupported proprietary APIs | Planned |
-| Table/Visualize/Profile/Execution | Result Service + Arrow + AG Grid + ECharts | Correct full-data aggregates, exact decimals, bounded preview, current result ACL | Foundation UI; backend planned |
+| Table/Visualize/Profile/Execution | Precise SQL result service + native table/chart views | Correct full-data aggregates, exact decimals, bounded preview, current result ACL | Trino results and bounded-preview tables/charts/profiles implemented; complete dataset aggregation and Spark display output remain planned |
 | Dashboards and semantics | Native product modules | Parameters, units, metric lineage, viewer rights, snapshot vs refresh semantics | Planned |
 | Shared business semantic layer | Versioned metric/join/dimension definitions | Consistent metric meaning across SQL, dashboards and Sylon; grain/fan-out, time zone, unit, synonym and policy tests | Planned |
 | Visual pipeline designer | Product graph editor + versioned executable source | Round-trip supported graph/code, validation, compare and promotion | Planned |
@@ -30,18 +30,19 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 |---|---|---|---|
 | Spark application lifecycle | Apache/Kubeflow adapters | Create, observe, cancel, reconcile after controller restart; no duplicate commit | Apache batch adapter and durable lifecycle implemented; local operator checks recorded; EKS/S3 qualification pending; Kubeflow preview only |
 | Spark SQL service | Kyuubi + Spark SQL + Ranger candidate | UC identifiers, user propagation, filtering/masking, denied escape paths | Planned; critical gate |
+| Governed distributed SQL | Trino + DataSlate durable SQL controller | Exact user mapping, engine read-only policy, filtering/masking, durable result ownership and cancellation | Implemented; real distributed Trino TLS/JWT/local policy tests pass; cloud connectors/HA/capacity pending |
 | Spark Connect | Authenticated gateway + isolated server | No raw endpoint, correct identity, compatible APIs, session reconnect | Planned |
 | Native acceleration | Comet candidate | Differential correctness, denied access, fallback and measured performance | Planned |
-| Packages and runtimes | BuildKit + OCI registry | Pinned JDK/Scala/Spark/Delta/UC artifacts, isolated builds, provenance and rollback | Planned |
+| Packages and runtimes | BuildKit + OCI registry | Pinned JDK/Scala/Spark/Delta/UC artifacts, isolated builds, provenance and rollback | Pinned ingestion image and offline real Spark/Delta container suite implemented; runtime registry/build isolation/UC profiles planned |
 | S3 lake attachment | S3A + scoped EKS identities | Read/write/refresh driver+executor+catalog credentials; private network/KMS | First cloud qualification |
 | Azure/GCP lake attachment | ABFS/GCS connectors + federation | Equivalent identity, commit, private endpoint and maintenance tests | Planned profiles |
 | Dynamic dataset discovery | Catalog-first and bounded file scanner | JSON/Parquet schemas, Delta protocols, Iceberg snapshots/deletes; no unsafe guessing | Planned |
 | Unity Catalog | OSS UC integration | Catalog/schema/table/volume functions supported explicitly, grants and ownership | Planned; critical gate |
-| Delta tables | Qualified Delta protocol | Snappy data policy, merge, schema change, time travel, CDF, concurrent writers | Planned |
-| Iceberg | Authoritative REST catalog; Polaris profile | Qualified format versions, deletes, schema evolution, ownership and maintenance | Planned |
+| Delta tables | Qualified Delta protocol | Snappy data policy, merge, schema change, time travel, CDF, concurrent writers | Incremental append/Snappy/checkpoint runtime tested on host JVM and production OCI; cloud, merge, CDF and broader table lifecycle pending |
+| Iceberg | Authoritative REST catalog; Polaris profile | Qualified format versions, deletes, schema evolution, ownership and maintenance | Native v2 schema/discovery metadata and exact grant API/UI integrated with real local Polaris TLS/OAuth; table data/query/cloud/maintenance pending |
 | Table interoperability | Qualified UniForm read profile | Publication/cache freshness, no independent writes to Delta-owned metadata | Planned |
 | Federation | Trino or qualified source-specific adapter | Pushdown/dialect, credentials, read permissions, source outages and limits | Planned |
-| Batch ingestion | dlt OSS + Spark publication | Cursor state, staging/checks/commit, schema drift, restart and backfill | Planned |
+| Batch ingestion | Strict Spark file ingestion; dlt connector track | Cursor state, staging/checks/commit, schema drift, restart and backfill | Versioned JSON/Parquet→Delta definitions, scoped prefixes, exclusive writers, checkpoint recovery and strict schema checks implemented; local runtime14 scenarios pass; cloud/connectors pending |
 | Streaming/CDC | Kafka, Structured Streaming, Debezium | Offset continuity, deletes/order, exclusive checkpoint, replay and recovery | Planned |
 | Push ingestion endpoint | Product ingest API + durable buffering | Admission, dedup policy, durable acknowledgement, publication and backpressure | Planned |
 | Declarative ETL | Spark Declarative Pipelines | Dependency graph, incremental state, expectations and deterministic update | Planned |
@@ -54,17 +55,17 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 
 | Capability | Foundation/component | Required acceptance evidence | Initial track |
 |---|---|---|---|
-| Sylon ask-data | Semantics + governed queries | Correct cited results, ambiguous questions, policy-aware answers and charts | Planned |
-| Sylon Code | Context assembler + edit tools | Exact cell/error/runtime context, conflict-aware diff, separate apply/run actions | Planned |
-| Provider/gateway connections | Per-provider SDK adapters | Streaming, tool calls, OAuth/API keys/WIF where supported, expiry and quotas | Planned |
+| Sylon ask-data | Semantics + governed queries | Correct cited results, ambiguous questions, policy-aware answers and charts | Authorized notebook/catalog/search context and cited metadata answers implemented; governed query tools, semantics and answer evaluation pending |
+| Sylon Code | Context assembler + edit tools | Exact cell/error/runtime context, conflict-aware diff, separate apply/run actions | Selected saved-cell assistance and atomic revision-checked Python/SQL proposals implemented; explicit apply never runs code; execution-error/output context and interactive tools pending |
+| Provider/gateway connections | Per-provider adapters | Streaming, tool calls, OAuth/API keys/WIF where supported, expiry and quotas | Embeddings and Responses/Chat Completions HTTPS adapters with bearer/OAuth credentials, explicit data transfer, bounded structured replies and no automatic paid retry implemented; streaming, subscription login and individual native provider profiles pending |
 | Agent Studio | Native UI + LangGraph | Templates, tools, instructions, tests, publish, rollback, scheduled/service modes | Planned |
 | Durable agent runtime | LangGraph + PostgreSQL | Restart/cancel/resume, bounded loops, tool receipts and no duplicate actions | Planned |
-| Agent memory | PostgreSQL/pgvector + provenance | Personal/project/team scopes, correction, expiration, revocation and deletion | Planned |
+| Agent memory | PostgreSQL/pgvector + provenance | Personal/project/team scopes, correction, expiration, revocation and deletion | Bounded private Sylon conversation history with current source-grant checks and owner deletion implemented; independent durable agent memory, TTL/correction and team sharing pending |
 | Context efficiency | Optional Headroom | Cost per successful task including overhead/retries; protected exact content | Planned |
 | Advanced memory | Hindsight adapter | Tenant mapping, authorized recall, consolidation/deletion propagation | Planned |
 | MCP/tools | Typed tool broker | Audience checks, no token passthrough, scoped tools and atomic action reviews | Planned |
 | AI evaluations/playground | MLflow + product benchmark sets | Agent/model/prompt/tool versions tied to traces, regressions block promotion | Planned |
-| AI search/RAG | pgvector/full-text; dedicated index adapter when needed | Sync, hybrid relevance, filters, authorized retrieval and deletions | Planned |
+| AI search/RAG | pgvector/full-text; dedicated index adapter when needed | Sync, hybrid relevance, filters, authorized retrieval and deletions | Durable notebook/Polaris metadata index, exact current-policy filtering, lexical/hybrid retrieval, source invalidation and bounded embedding transfer implemented; production relevance/scale/provider qualification pending |
 | SQL AI functions | Governed model-invocation functions | Row-level egress control, deterministic receipts, cost limits and failure semantics | Planned |
 | ML experiments/registry | MLflow | Isolated trace/artifact access, model lineage and reproducible runs | Planned |
 | Distributed training | Qualified Spark/GPU training profiles | Gang/admission policy, checkpoints, failed worker recovery, resource limits | Planned |
@@ -78,7 +79,7 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 |---|---|---|---|
 | SSO and team RBAC | OIDC + product authorization | Issuer/audience/signature/expiry, roles, revocation and no fallback identity | Foundation |
 | Identity and group lifecycle | OIDC/SCIM + service-principal administration | Join/change/leave propagation, group mapping, automation identities, bounded revocation and ownership transfer | Planned |
-| Row/column policies | Catalog + engine enforcement | Equivalent enforcement across governed SQL/notebook/AI/result/export paths; deny restricted users raw-storage bypass; separately document privileged engineering access | Planned; critical gate |
+| Row/column policies | Catalog + engine enforcement | Equivalent enforcement across governed SQL/notebook/AI/result/export paths; deny restricted users raw-storage bypass; separately document privileged engineering access | Local Trino read-only/row-filter/mask enforcement and policy-version result revocation tested; cross-engine/cloud enforcement remains a critical gate |
 | Classification and policy UI | Product metadata and policy adapter | Versioned changes, effective-policy explanation and enforcement acknowledgement | Planned |
 | Installation/adoption | Helm + preflight/dependency planner | Exact version/API/owner detection, canary, no silent adoption/CRD upgrades | Foundation |
 | Self-contained distribution | Managed qualified dependencies | Complete reproducible installation including optional self-hosted AI profile | Planned; chart foundation |

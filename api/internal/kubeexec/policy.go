@@ -3,6 +3,7 @@ package kubeexec
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 
 	"dataslate.local/api/internal/platform"
@@ -42,7 +43,7 @@ func (b *GuardedBackend) Authorize(ctx context.Context, r platform.Run) (bool, e
 		return false, errors.New("current execution policy is invalid")
 	}
 	for _, binding := range bindings {
-		if binding.ID == r.BindingID && binding.WorkspaceID == r.WorkspaceID && binding.ExecutionProfile == r.Profile && binding.Allows(r.SubmittedBy) {
+		if binding.ID == r.BindingID && binding.WorkspaceID == r.WorkspaceID && reflect.DeepEqual(binding.ExecutionProfile, r.Profile) && binding.Allows(r.SubmittedBy) {
 			return true, nil
 		}
 	}

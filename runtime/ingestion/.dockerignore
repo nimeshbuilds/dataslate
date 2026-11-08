@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!dataslate_ingestion.py
+!download_jars.py
+!jars.lock.json
+!QualificationDockerfile
+!qualify_image.py
+!tests/
+!tests/qualify_spark.py

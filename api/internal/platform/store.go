@@ -8,6 +8,10 @@ import (
 )
 
 type Store interface {
+	SylonStore
+	SearchStore
+	CatalogStore
+	QueryStore
 	Ready(context.Context) error
 	Mode() string
 	Workspaces(context.Context) ([]Workspace, error)
@@ -18,6 +22,10 @@ type Store interface {
 	SaveNotebook(context.Context, string, string, NotebookInput) (Notebook, error)
 	DeleteNotebook(context.Context, string, string, int) error
 	Revisions(context.Context, string, string) ([]Notebook, error)
+	IngestionPipelines(context.Context, string) ([]IngestionPipeline, error)
+	IngestionPipeline(context.Context, string, string) (IngestionPipeline, error)
+	SaveIngestionPipeline(context.Context, string, string, IngestionPipelineInput) (IngestionPipeline, error)
+	DeleteIngestionPipeline(context.Context, string, string, int) error
 	CreateRun(context.Context, Run, string, string) (Run, bool, error)
 	Runs(context.Context, string, ExecutionSubject) ([]Run, error)
 	Run(context.Context, string, string, ExecutionSubject) (Run, error)
@@ -27,17 +35,27 @@ type Store interface {
 	AdvanceRun(context.Context, RunLease, RunUpdate) (Run, error)
 }
 type MemoryStore struct {
-	mu         sync.RWMutex
-	workspaces map[string]Workspace
-	notebooks  map[string]Notebook
-	history    map[string][]Notebook
-	executions map[string]*memoryExecution
-	runKeys    map[string]string
+	sylonConversations    map[string]SylonConversation
+	sylonJobs             map[string]*memorySylonJob
+	searchJobs            map[string]*memorySearchJob
+	searchKeys            map[string]string
+	searchDocuments       map[string]SearchDocument
+	catalogObservations   map[string]CatalogObservation
+	queries               map[string]*memoryQuery
+	queryKeys             map[string]string
+	mu                    sync.RWMutex
+	workspaces            map[string]Workspace
+	notebooks             map[string]Notebook
+	history               map[string][]Notebook
+	executions            map[string]*memoryExecution
+	runKeys               map[string]string
+	ingestion             map[string]IngestionPipeline
+	ingestionReservations map[string]ingestionReservation
 }
 
 func NewMemoryStore() *MemoryStore {
 	now := time.Now().UTC()
-	return &MemoryStore{workspaces: map[string]Workspace{"default": {Resource: Resource{ID: "default", CreatedAt: now, UpdatedAt: now, Revision: 1}, Name: "Development workspace", Slug: "default"}}, notebooks: map[string]Notebook{}, history: map[string][]Notebook{}, executions: map[string]*memoryExecution{}, runKeys: map[string]string{}}
+	return &MemoryStore{sylonConversations: map[string]SylonConversation{}, sylonJobs: map[string]*memorySylonJob{}, searchJobs: map[string]*memorySearchJob{}, searchKeys: map[string]string{}, searchDocuments: map[string]SearchDocument{}, catalogObservations: map[string]CatalogObservation{}, queries: map[string]*memoryQuery{}, queryKeys: map[string]string{}, workspaces: map[string]Workspace{"default": {Resource: Resource{ID: "default", CreatedAt: now, UpdatedAt: now, Revision: 1}, Name: "Development workspace", Slug: "default"}}, notebooks: map[string]Notebook{}, history: map[string][]Notebook{}, executions: map[string]*memoryExecution{}, runKeys: map[string]string{}, ingestion: map[string]IngestionPipeline{}, ingestionReservations: map[string]ingestionReservation{}}
 }
 func (*MemoryStore) Ready(context.Context) error { return nil }
 func (*MemoryStore) Mode() string                { return "memory" }
@@ -115,6 +133,11 @@ func (s *MemoryStore) SaveNotebook(_ context.Context, ws, id string, in Notebook
 	n.Name = in.Name
 	n.Kind = in.Kind
 	n.Cells = append([]Cell{}, in.Cells...)
+	for key, doc := range s.searchDocuments {
+		if doc.Notebook != nil && doc.Notebook.ID == n.ID {
+			delete(s.searchDocuments, key)
+		}
+	}
 	s.notebooks[n.ID] = n
 	s.history[n.ID] = append(s.history[n.ID], cloneNotebook(n))
 	return cloneNotebook(n), nil
@@ -128,6 +151,17 @@ func (s *MemoryStore) DeleteNotebook(_ context.Context, ws, id string, rev int) 
 	}
 	if n.Revision != rev {
 		return ErrConflict
+	}
+	for key, doc := range s.searchDocuments {
+		if doc.Notebook != nil && doc.Notebook.ID == id {
+			delete(s.searchDocuments, key)
+		}
+	}
+	for key, job := range s.searchJobs {
+		if job.Work.Job.Notebook != nil && job.Work.Job.Notebook.ID == id {
+			delete(s.searchKeys, job.Key)
+			delete(s.searchJobs, key)
+		}
 	}
 	delete(s.notebooks, id)
 	delete(s.history, id)

@@ -43,7 +43,7 @@ Use a few design partners to validate this hypothesis alongside engineering. Ask
 
 ## Current evidence
 
-The [validation record](validation.md) separates published foundation CI from the later local execution implementation. The repository now implements approved Spark applications and exact saved Python notebook batches through a durable controller. Source snapshots, scoped UI/API/CLI runs, migration/recovery tests and restricted local Kubernetes qualification are recorded individually. SQL, ingestion, rich result delivery and Sylon still require backend implementation. Local operator execution and restricted container startup do not establish a working EKS/S3 production installation.
+The [validation record](validation.md) separates published foundation CI from the later local execution implementation. The repository now implements approved Spark applications and exact saved Python notebook batches through a durable controller. Source snapshots, scoped UI/API/CLI runs, migration/recovery tests and restricted local Kubernetes qualification are recorded individually. Subsequent implementation adds incremental file ingestion, Trino SQL with typed results and preview charts, Polaris metadata, authorized lexical/hybrid search and Sylon conversations with reviewed cell proposals. Their individual contracts and qualification evidence are tracked separately; interactive kernels, orchestration, maintenance and broader platform modules remain incomplete. Local operator execution and restricted container startup do not establish a working EKS/S3 production installation.
 
 Historical observations at publication revision `a18ddd2` (the execution implementation below addresses these; they are not the current code state):
 

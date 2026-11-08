@@ -1,0 +1,37 @@
+{
+  "date": "2026-11-07",
+  "profile": {
+    "spark": "4.1.3",
+    "delta": "4.3.1",
+    "hadoop": "3.4.2"
+  },
+  "unitTests": 23,
+  "hostJVM": {
+    "platform": "macOS arm64",
+    "python": "3.14.6",
+    "java": "Temurin21.0.13+9",
+    "scenarios": 14,
+    "failed": []
+  },
+  "productionOCI": {
+    "manifestDigest": "sha256:4c8f94894db6ee522ff9489eb758f65c2dea817c91298d8b92b8ea9202636d11",
+    "architecture": "linux/arm64",
+    "python": "3.10.12",
+    "uid": 185,
+    "network": "none",
+    "memoryGiB": 4,
+    "cpus": 2,
+    "shaLockedJarsVerified": 6,
+    "scenarios": 14,
+    "failed": [],
+    "harness": "read-only mounted harness only; runtime module and jars from exact built production image",
+    "java": "Temurin21.0.11+10",
+    "configDigest": "sha256:3266966ede36e6cf3f753827acabc32e9c9f25ab0d15ea45eedb7e2bfdbd0180"
+  },
+  "notQualified": [
+    "AWS EKS/S3 or IRSA live access",
+    "Azure/GCS runtime adapters",
+    "SparkApplication ingestion end-to-end platform publication",
+    "multi-node or high-volume load"
+  ]
+}

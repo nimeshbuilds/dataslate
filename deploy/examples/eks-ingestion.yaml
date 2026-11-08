@@ -1,0 +1,23 @@
+# Merge with your production values and eks-execution.yaml after qualifying the
+# built ingestion runtime image and scoped EKS identity. No AWS resources created.
+execution:
+  bindings:
+    - id: orders-ingestion
+      workspaceId: engineering
+      name: Orders file ingestion
+      executionKind: file-ingestion-batch
+      operator: apache
+      # Replace with the digest of your built runtime/ingestion/Dockerfile image.
+      image: registry.example.com/dataslate/ingestion@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      namespace: dataslate-ingestion
+      serviceAccount: dataslate-ingestion
+      executorInstances: 1
+      maxRunSeconds: 3600
+      ingestionStorage:
+        readPrefixes: [s3://example-lake/incoming/]
+        writePrefixes: [s3://example-lake/managed/, s3://example-lake/checkpoints/]
+      allowedSubjects:
+        - issuer: https://identity.example.com/realms/dataslate
+          subject: engineer-123
+  # Retain previous execution namespaces until their runs and writers drain.
+  namespaces: [dataslate-ingestion]

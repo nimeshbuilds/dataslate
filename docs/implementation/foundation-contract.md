@@ -2,7 +2,7 @@
 
 Product: **DataSlate**. Assistant: **Sylon**. Initial validation target: AWS EKS and customer-owned S3. Deployment serves teams in one organization. Distribution: open source with paid support/hosting. Broader data, BI, ML, agents, serving, apps, sharing and operations are committed product scope; status must distinguish implemented code, tested adapters and production-qualified integration.
 
-This contract records the first implementation. The [batch execution contract](execution-contract.md) extends the run, status and controller resources; where its definitions differ, use that later contract. Never simulate a successful query, Spark submission, connection verification or assistant response. Unsupported execution returns a typed capability error and the UI explains the missing integration. Approved immutable applications and explicitly granted saved Python notebook batches use the durable API and Apache operator adapter described in that contract. Interactive notebook sessions, SQL and assistant execution remain separate integrations. Live EKS/S3 qualification is a separate release gate. API generation/validation is not execution.
+This contract records the first implementation. Later [batch execution](execution-contract.md), [ingestion](ingestion-contract.md), [SQL](sql-contract.md), [catalog](catalog-contract.md), [search](search-contract.md) and [Sylon](sylon-contract.md) contracts extend it; their precise definitions take precedence for those resources. Never simulate a successful query, Spark submission, connection verification or assistant response. Unsupported execution returns a typed capability error and the UI explains the missing integration. Approved immutable applications and explicitly granted saved Python notebook batches use the durable API and Apache operator adapter. Sylon uses a separate durable generation controller and reviewed code application. Interactive notebook sessions and agent tool execution remain separate integrations. Live EKS/S3 qualification is a separate release gate. API generation/validation is not execution.
 
 ## Repository ownership
 
@@ -46,7 +46,7 @@ Environment contract: `DATASLATE_ADDR` (loopback default), `DATASLATE_AUTH_MODE`
 
 ## Module identities
 
-Use these stable IDs consistently: `postgres`, `spark-operator`, `spark`, `unity-catalog`, `delta`, `kyuubi`, `ranger`, `zookeeper`, `airflow`, `ingestion`, `kafka`, `cdc`, `pipelines`, `maintenance`, `lineage`, `dashboards`, `mlflow`, `sylon`, `agents`, `memory`, `headroom`, `model-serving`, `feature-store`, `search`, `apps`, `sharing`, `iceberg`, `federation`, `observability`, `secrets`, `identity`, `registry`. Their dependency graph and integration status are engineering metadata, not a claim they are installed. Application configuration and resource ownership use `managed` or `external`; enablement is separate.
+Use these stable IDs consistently: `postgres`, `spark-operator`, `spark`, `unity-catalog`, `delta`, `kyuubi`, `trino`, `polaris`, `ranger`, `zookeeper`, `airflow`, `ingestion`, `kafka`, `cdc`, `pipelines`, `maintenance`, `lineage`, `dashboards`, `mlflow`, `sylon`, `agents`, `memory`, `headroom`, `model-serving`, `feature-store`, `search`, `apps`, `sharing`, `iceberg`, `federation`, `observability`, `secrets`, `identity`, `registry`. Their dependency graph and integration status are engineering metadata, not a claim they are installed. Application configuration and resource ownership use `managed` or `external`; enablement is separate.
 
 ## Validation
 

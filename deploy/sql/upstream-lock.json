@@ -1,0 +1,10 @@
+{
+  "chart": "trino",
+  "chartVersion": "1.45.0",
+  "appVersion": "484",
+  "url": "https://github.com/trinodb/charts/releases/download/trino-1.45.0/trino-1.45.0.tgz",
+  "sha256": "44d918d371fd68bded77725cf9bb1f85e6dec595d36ac156a1f42b135641f830",
+  "sourceIndex": "https://trinodb.github.io/charts/index.yaml",
+  "status": "Qualified on owned local k3s/arm64: TLS/JWT, coordinator and worker, governed TPCH transport, cancellation and NetworkPolicy; EKS/S3 and lake connectors unqualified",
+  "image": "trinodb/trino@sha256:2704eb53935af5e582d63d6033e9bf99d20c325e9b0e30b1016ef59a4773979f"
+}

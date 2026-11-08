@@ -35,12 +35,15 @@ test('transport contract: terminal notebook runs continue observing source clean
   };
   await page.route('**/api/v1/workspaces/default/execution-bindings', (route) => json(route, { items: [] }));
   await page.route('**/api/v1/workspaces/default/runs', (route) => json(route, { items: [run] }));
-  await page.route('**/api/v1/workspaces/default/runs/run-browser-contract', (route) => json(route, run));
+  // Distinguish the fetched detail from the optimistic list row, so fake time
+  // advances only after the initial fetch has installed its next poll timer.
+  await page.route('**/api/v1/workspaces/default/runs/run-browser-contract', (route) => json(route, { ...run, revision: run.revision + 1 }));
   await openRuns(page);
   await page.clock.install();
   await page.locator('.run-row').first().click();
   const artifact = page.getByRole('region', { name: 'Run details' }).locator('dt:has-text("Source artifact") + dd');
   await expect(artifact).toHaveText('cleanup pending');
+  await expect(page.getByRole('region', { name: 'Run details' }).locator('dt:text-is("Revision") + dd')).toHaveText('2');
   run = { ...run, revision: 2, sourceArtifact: { ...run.sourceArtifact!, state: 'deleted' } };
   await page.clock.fastForward(5500);
   await expect(artifact).toHaveText('deleted');

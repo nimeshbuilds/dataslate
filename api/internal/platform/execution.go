@@ -28,14 +28,15 @@ const NotebookPythonBatch = "notebook-python-batch"
 const NotebookApplicationFile = "local:///opt/dataslate/source/source.py"
 
 type ExecutionProfile struct {
-	ExecutionKind       string `json:"executionKind,omitempty"`
-	Operator            string `json:"operator"`
-	Image               string `json:"image"`
-	MainApplicationFile string `json:"mainApplicationFile"`
-	Namespace           string `json:"namespace"`
-	ServiceAccount      string `json:"serviceAccount"`
-	ExecutorInstances   int    `json:"executorInstances"`
-	MaxRunSeconds       int    `json:"maxRunSeconds,omitempty"`
+	IngestionStorage    *IngestionStorage `json:"ingestionStorage,omitempty"`
+	ExecutionKind       string            `json:"executionKind,omitempty"`
+	Operator            string            `json:"operator"`
+	Image               string            `json:"image"`
+	MainApplicationFile string            `json:"mainApplicationFile"`
+	Namespace           string            `json:"namespace"`
+	ServiceAccount      string            `json:"serviceAccount"`
+	ExecutorInstances   int               `json:"executorInstances"`
+	MaxRunSeconds       int               `json:"maxRunSeconds,omitempty"`
 }
 
 func (p ExecutionProfile) Kind() string {
@@ -45,7 +46,7 @@ func (p ExecutionProfile) Kind() string {
 	return p.ExecutionKind
 }
 func (p ExecutionProfile) ApplicationFile() string {
-	if p.Kind() == NotebookPythonBatch {
+	if p.Kind() == NotebookPythonBatch || p.Kind() == FileIngestionBatch {
 		return NotebookApplicationFile
 	}
 	return p.MainApplicationFile
@@ -76,11 +77,18 @@ func (b ExecutionBinding) Allows(p ExecutionSubject) bool {
 	return false
 }
 func (b ExecutionBinding) Validate() error {
-	if b.Kind() != ApprovedApplication && b.Kind() != NotebookPythonBatch {
-		return errors.New("executionKind must be approved-app or notebook-python-batch")
+	if b.Kind() != ApprovedApplication && b.Kind() != NotebookPythonBatch && b.Kind() != FileIngestionBatch {
+		return errors.New("executionKind must be approved-app, notebook-python-batch or file-ingestion-batch")
 	}
-	if b.Kind() == NotebookPythonBatch && b.MainApplicationFile != "" {
+	if (b.Kind() == NotebookPythonBatch || b.Kind() == FileIngestionBatch) && b.MainApplicationFile != "" {
 		return errors.New("notebook execution uses only its immutable server-generated source; mainApplicationFile must be empty")
+	}
+	if b.Kind() == FileIngestionBatch {
+		if err := b.IngestionStorage.Validate(); err != nil {
+			return err
+		}
+	} else if b.IngestionStorage != nil {
+		return errors.New("ingestionStorage is allowed only on ingestion bindings")
 	}
 	if b.MaxRunSeconds != 0 && (b.MaxRunSeconds < 60 || b.MaxRunSeconds > 86400) {
 		return errors.New("maxRunSeconds must be zero (default 3600) or between 60 and 86400")
@@ -163,8 +171,10 @@ type RunEvent struct {
 }
 type Run struct {
 	Resource
-	Notebook       *NotebookProvenance `json:"notebook,omitempty"`
-	SourceArtifact *SourceArtifact     `json:"sourceArtifact,omitempty"`
+	Ingestion      *IngestionProvenance `json:"ingestion,omitempty"`
+	WriterReleased bool                 `json:"writerReleased,omitempty"`
+	Notebook       *NotebookProvenance  `json:"notebook,omitempty"`
+	SourceArtifact *SourceArtifact      `json:"sourceArtifact,omitempty"`
 	// Source is an independently persisted snapshot loaded only for the controller.
 	Source            *RunSource       `json:"-"`
 	WorkspaceID       string           `json:"workspaceId"`
@@ -192,6 +202,16 @@ func (r Run) ExecutionDeadline() time.Time {
 	return r.CreatedAt.Add(time.Duration(r.Profile.RunLimitSeconds()) * time.Second)
 }
 func cloneRun(r Run) Run {
+	if r.Profile.IngestionStorage != nil {
+		grants := *r.Profile.IngestionStorage
+		grants.ReadPrefixes = append([]string{}, grants.ReadPrefixes...)
+		grants.WritePrefixes = append([]string{}, grants.WritePrefixes...)
+		r.Profile.IngestionStorage = &grants
+	}
+	if r.Ingestion != nil {
+		p := *r.Ingestion
+		r.Ingestion = &p
+	}
 	if r.Notebook != nil {
 		n := *r.Notebook
 		n.CellIDs = append([]string{}, n.CellIDs...)
@@ -203,8 +223,14 @@ func cloneRun(r Run) Run {
 	}
 	if r.Source != nil {
 		source := *r.Source
-		source.Notebook = *r.Notebook
-		source.Notebook.CellIDs = append([]string{}, source.Notebook.CellIDs...)
+		if r.Notebook != nil {
+			source.Notebook = *r.Notebook
+			source.Notebook.CellIDs = append([]string{}, source.Notebook.CellIDs...)
+		}
+		if r.Source.Ingestion != nil {
+			p := *r.Source.Ingestion
+			source.Ingestion = &p
+		}
 		r.Source = &source
 	}
 	r.Events = append([]RunEvent{}, r.Events...)
@@ -225,7 +251,7 @@ func runSummary(r Run) Run {
 		observed := *r.ObservedAt
 		r.ObservedAt = &observed
 	}
-	return r
+	return cloneRun(r)
 }
 func newRun(ws string, b ExecutionBinding, subject ExecutionSubject) Run {
 	resource := newResource("run-")
@@ -239,10 +265,14 @@ var idempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{8,128}$`)
 type RunInput struct {
 	BindingID      string             `json:"bindingId"`
 	IdempotencyKey string             `json:"idempotencyKey"`
+	Pipeline       *PipelineSelection `json:"pipeline,omitempty"`
 	Notebook       *NotebookSelection `json:"notebook,omitempty"`
 }
 
 func (in RunInput) Validate() error {
+	if in.Pipeline != nil && (in.Notebook != nil || !identifier.MatchString(in.Pipeline.ID) || in.Pipeline.Revision < 1) {
+		return errors.New("pipeline requires a valid id and positive saved revision, without notebook selection")
+	}
 	if in.Notebook != nil && (!identifier.MatchString(in.Notebook.ID) || in.Notebook.Revision < 1) {
 		return errors.New("notebook requires a valid id and positive saved revision")
 	}
@@ -259,6 +289,12 @@ func runFingerprint(in RunInput) string {
 			Notebook  NotebookSelection
 		}{in.BindingID, *in.Notebook})
 	}
+	if in.Pipeline != nil {
+		data, _ = json.Marshal(struct {
+			BindingID string
+			Pipeline  PipelineSelection
+		}{in.BindingID, *in.Pipeline})
+	}
 	v := sha256.Sum256(data)
 	return hex.EncodeToString(v[:])
 }
@@ -269,6 +305,7 @@ type RunLease struct {
 	Fence        int64
 }
 type RunUpdate struct {
+	WriterReleased                                            bool
 	SourceArtifact                                            *SourceArtifact
 	State, UID, Message                                       string
 	RetryAfter                                                time.Duration
@@ -355,6 +392,12 @@ func applyRunUpdate(r Run, u RunUpdate, now time.Time) (Run, error) {
 	if r.State != u.State || r.Message != u.Message {
 		r = appendRunEvent(r, RunEvent{At: now, State: u.State, Message: u.Message})
 	}
+	if u.WriterReleased {
+		if r.Ingestion == nil || !r.Terminal() {
+			return Run{}, ErrConflict
+		}
+		r.WriterReleased = true
+	}
 	r.State = u.State
 	if r.Terminal() && r.SourceArtifact != nil && r.SourceArtifact.State != "deleted" {
 		a := *r.SourceArtifact
@@ -407,6 +450,19 @@ func reconcileOnceWithTimeout(ctx context.Context, store Store, backend Executio
 		return finish(RunUpdate{State: "unknown", Message: message, RetryAfter: 5 * time.Second})
 	}
 	if r.Terminal() {
+		if r.Ingestion != nil && !r.WriterReleased {
+			drain, ok := backend.(IngestionDrainBackend)
+			if !ok {
+				return true, finish(RunUpdate{State: r.State, Message: r.Message, RetryAfter: 5 * time.Second})
+			}
+			released, e := drain.DrainIngestion(op, r)
+			if e != nil || !released {
+				return true, finish(RunUpdate{State: r.State, Message: r.Message, RetryAfter: 5 * time.Second})
+			}
+			if e = checkpoint(RunUpdate{State: r.State, Message: r.Message, WriterReleased: true, RetainLease: true}); e != nil {
+				return true, e
+			}
+		}
 		if r.SourceArtifact == nil || r.SourceArtifact.State == "deleted" {
 			return true, nil
 		}
@@ -484,7 +540,7 @@ func reconcileOnceWithTimeout(ctx context.Context, store Store, backend Executio
 			return true, unknown("Backend returned no resource identity; automatic submission is blocked.")
 		}
 		r.KubernetesUID = observed.UID
-		if r.Notebook != nil && !r.CancelRequested && observed.State != "succeeded" && observed.State != "failed" {
+		if r.SourceArtifact != nil && !r.CancelRequested && observed.State != "succeeded" && observed.State != "failed" {
 			// Bind source lifetime to the verified application only after its UID is durably recorded.
 			if err = checkpoint(RunUpdate{State: r.State, UID: observed.UID, Message: r.Message, Observed: true, RetainLease: true}); err != nil {
 				return true, err
@@ -533,13 +589,13 @@ func reconcileOnceWithTimeout(ctx context.Context, store Store, backend Executio
 	if r.SubmissionStarted || r.KubernetesUID != "" {
 		return true, unknown("Previously submitted resource is absent; automatic resubmission is blocked to prevent duplicate data writes.")
 	}
-	if r.Notebook != nil {
+	if r.SourceArtifact != nil {
 		artifacts, ok := backend.(SourceBackend)
 		if !ok {
 			return true, unknown("Source artifact backend is unavailable.")
 		}
 		if err = r.ValidateSource(); err != nil {
-			return true, unknown("Stored notebook source integrity could not be verified.")
+			return true, unknown("Stored execution source integrity could not be verified.")
 		}
 		if op.Err() != nil {
 			return true, unknown("Source preparation deadline elapsed before any new source operation; reconciliation will retry.")
@@ -547,7 +603,7 @@ func reconcileOnceWithTimeout(ctx context.Context, store Store, backend Executio
 		a := *r.SourceArtifact
 		wasStarted := a.CreationStarted
 		a.CreationStarted = true
-		if err = checkpoint(RunUpdate{State: r.State, Message: "Preparing the immutable saved notebook source.", SourceArtifact: &a, RetainLease: true}); err != nil {
+		if err = checkpoint(RunUpdate{State: r.State, Message: "Preparing the immutable saved execution source.", SourceArtifact: &a, RetainLease: true}); err != nil {
 			return true, err
 		}
 		if r.CancelRequested {
@@ -559,12 +615,12 @@ func reconcileOnceWithTimeout(ctx context.Context, store Store, backend Executio
 		}
 		prepared, e := artifacts.PrepareSource(op, r)
 		if e != nil {
-			return true, unknown("Notebook source preparation is unconfirmed; no Spark submission was attempted.")
+			return true, unknown("Execution source preparation is unconfirmed; no Spark submission was attempted.")
 		}
 		if prepared.UID == "" || prepared.Name != a.Name || prepared.State != "ready" {
-			return true, unknown("Notebook source preparation returned no verified identity.")
+			return true, unknown("Execution source preparation returned no verified identity.")
 		}
-		if err = checkpoint(RunUpdate{State: r.State, Message: "Immutable notebook source prepared.", SourceArtifact: &prepared, RetainLease: true}); err != nil {
+		if err = checkpoint(RunUpdate{State: r.State, Message: "Immutable execution source prepared.", SourceArtifact: &prepared, RetainLease: true}); err != nil {
 			return true, err
 		}
 		if err = checkDeadline(); err != nil {

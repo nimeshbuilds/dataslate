@@ -1,0 +1,150 @@
+{{- if .Values.sql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sql
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+data:
+  bindings.json: {{ include "dataslate.sqlBindings" . | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sql-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sql-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.sql.controller.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: sql-controller
+  template:
+    metadata:
+      labels:
+        {{- include "dataslate.selector" . | nindent 8 }}
+        app.kubernetes.io/component: sql-controller
+      annotations:
+        checksum/sql: {{ .Values.sql | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "dataslate.fullname" . }}-sql-controller
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- include "dataslate.podSecurityContext" . | nindent 8 }}
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      {{- include "dataslate.scheduling" . | nindent 6 }}
+      containers:
+        - name: sql-controller
+          image: {{ include "dataslate.image" .Values.sql.controller.image | quote }}
+          imagePullPolicy: {{ .Values.sql.controller.image.pullPolicy }}
+          securityContext:
+            {{- include "dataslate.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 8082, protocol: TCP}
+          env:
+            - {name: DATASLATE_SQL_CONTROLLER_ADDR, value: "0.0.0.0:8082"}
+            - {name: DATASLATE_SQL_BINDINGS_FILE, value: /etc/dataslate/sql/bindings.json}
+            {{- include "dataslate.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.sql.controller.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: sql, mountPath: /etc/dataslate/sql, readOnly: true}
+            {{- range .Values.sql.credentials }}
+            - name: sql-credential-{{ .id }}
+              mountPath: {{ printf "/etc/dataslate/sql-credentials/%s" .id | quote }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: sql
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-sql
+        {{- range .Values.sql.credentials }}
+        - name: sql-credential-{{ .id }}
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .tokenSecret.name | quote }}
+                  items:
+                    - {key: {{ .tokenSecret.key | quote }}, path: token}
+              {{- if .caSecret }}
+              - secret:
+                  name: {{ .caSecret.name | quote }}
+                  items:
+                    - {key: {{ .caSecret.key | quote }}, path: ca.crt}
+              {{- end }}
+        {{- end }}
+        {{- include "dataslate.databaseVolume" . | nindent 8 }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sql-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: sql-controller
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodLabels | nindent 14 }}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        {{- if eq .Values.postgres.mode "managed" }}
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ include "dataslate.postgresName" . }}
+        {{- else }}
+        {{- range .Values.networkPolicy.postgresEgressCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.networkPolicy.postgresPort }}}]
+    {{- range .Values.sql.engineEgress }}
+    - to:
+        - ipBlock: {cidr: {{ .cidr | quote }}}
+      ports: [{protocol: TCP, port: {{ .port }}}]
+    {{- end }}
+{{- end }}
+{{- end }}

@@ -41,7 +41,7 @@ class ComputeProfileTests(unittest.TestCase):
         self.assertEqual(binding["spec"]["validationActions"],["Deny"])
         self.assertEqual(binding["spec"]["matchResources"]["namespaceSelector"]["matchLabels"],{"kubernetes.io/metadata.name":self.config["namespace"]})
         expressions="\n".join(v["expression"] for v in policy["spec"]["validations"])
-        for boundary in ("secretKeyRef","secretRef","automountServiceAccountToken","serviceAccountName","ephemeralContainers","hostNetwork","projected","request.userInfo.username"):
+        for boundary in ("secretKeyRef","secretRef","automountServiceAccountToken","serviceAccountName","ephemeralContainers","hostNetwork","projected","request.userInfo.username","dataslate.io/run"):
             self.assertIn(boundary,expressions)
         self.assertNotIn("has(v.secret)",expressions);self.assertNotIn("has(v.hostPath)",expressions)
     def test_explicit_irsa_adds_only_scoped_cloud_egress(self):

@@ -74,3 +74,148 @@
 {{- else -}}
 {{- if .Values.execution.bindings -}}{{- fail "execution bindings require execution.enabled=true" -}}{{- end -}}
 {{- end -}}
+
+{{- if .Values.sql.enabled -}}
+{{- if and .Values.networkPolicy.enabled (empty .Values.sql.engineEgress) -}}
+{{- fail "SQL requires explicit sql.engineEgress CIDR/port destinations retained until every query drains" -}}
+{{- end -}}
+{{- $credentials := dict -}}
+{{- range .Values.sql.credentials -}}
+{{- if hasKey $credentials .id -}}{{- fail "SQL credential IDs must be unique" -}}{{- end -}}
+{{- $_ := set $credentials .id true -}}
+{{- end -}}
+{{- $identities := dict -}}
+{{- range .Values.sql.bindings -}}
+{{- if not (hasKey $credentials .credentialsId) -}}{{- fail "SQL binding credentialsId must reference an entry in sql.credentials" -}}{{- end -}}
+{{- $key := printf "%s/%s" .workspaceId .id -}}
+{{- if hasKey $identities $key -}}{{- fail "SQL binding IDs must be unique within a workspace" -}}{{- end -}}
+{{- $_ := set $identities $key true -}}
+{{- $subjects := dict -}}{{- $users := dict -}}
+{{- range .allowedSubjects -}}
+{{- if ne .issuer $.Values.oidc.issuer -}}{{- fail "SQL binding subject issuers must match oidc.issuer" -}}{{- end -}}
+{{- $subjectKey := printf "%s/%s" .issuer .subject -}}
+{{- if hasKey $subjects $subjectKey -}}{{- fail "SQL binding subject identities must be unique" -}}{{- end -}}
+{{- if hasKey $users .engineUser -}}{{- fail "SQL binding engine users must be distinct for each subject" -}}{{- end -}}
+{{- $_ := set $subjects $subjectKey true -}}{{- $_ := set $users .engineUser true -}}
+{{- end -}}
+{{- end -}}
+{{- if gt (len (include "dataslate.sqlBindings" .)) 1048576 -}}
+{{- fail "SQL bindings exceed the controller's 1 MiB configuration limit" -}}
+{{- end -}}
+{{- else -}}
+{{- if or .Values.sql.bindings .Values.sql.credentials -}}{{- fail "SQL bindings and credentials require sql.enabled=true" -}}{{- end -}}
+{{- end -}}
+
+{{- if .Values.catalog.enabled -}}
+{{- if .Values.networkPolicy.enabled -}}
+{{- if empty .Values.catalog.egress -}}{{- fail "Catalog requires explicit catalog.egress for Polaris and OAuth token endpoint destinations" -}}{{- end -}}
+{{- range .Values.networkPolicy.httpsEgressCidrs -}}
+{{- if or (eq . "0.0.0.0/0") (eq . "::/0") -}}{{- fail "Catalog credentials require scoped networkPolicy.httpsEgressCidrs for the API identity provider; broad default egress would bypass catalog.egress" -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $credentials := dict -}}
+{{- range .Values.catalog.credentials -}}
+{{- if hasKey $credentials .id -}}{{- fail "Catalog credential IDs must be unique" -}}{{- end -}}
+{{- $_ := set $credentials .id true -}}
+{{- end -}}
+{{- $identities := dict -}}
+{{- range .Values.catalog.bindings -}}
+{{- if not (hasKey $credentials .connection.credentialsId) -}}{{- fail "Catalog binding credentialsId must reference catalog.credentials" -}}{{- end -}}
+{{- $key := printf "%s/%s" .workspaceId .id -}}
+{{- if hasKey $identities $key -}}{{- fail "Catalog binding IDs must be unique within a workspace" -}}{{- end -}}
+{{- $_ := set $identities $key true -}}
+{{- $subjects := dict -}}
+{{- range .allowedSubjects -}}
+{{- if ne .issuer $.Values.oidc.issuer -}}{{- fail "Catalog subject issuers must match oidc.issuer" -}}{{- end -}}
+{{- $subjectKey := printf "%s/%s" .issuer .subject -}}
+{{- if hasKey $subjects $subjectKey -}}{{- fail "Catalog subject identities must be unique" -}}{{- end -}}
+{{- $_ := set $subjects $subjectKey true -}}
+{{- end -}}
+{{- end -}}
+{{- if gt (len (include "dataslate.catalogBindings" .)) 1048576 -}}{{- fail "Catalog bindings exceed the 1 MiB ConfigMap limit" -}}{{- end -}}
+{{- else -}}
+{{- if or .Values.catalog.bindings .Values.catalog.credentials -}}{{- fail "Catalog bindings and credentials require catalog.enabled=true" -}}{{- end -}}
+{{- end -}}
+
+{{- if .Values.search.enabled -}}
+{{- $root := . -}}
+{{- $credentials := dict -}}
+{{- range .Values.search.credentials -}}
+{{- if hasKey $credentials .id -}}{{- fail "Search credential IDs must be unique" -}}{{- end -}}
+{{- $_ := set $credentials .id true -}}
+{{- end -}}
+{{- $catalogs := dict -}}
+{{- range .Values.catalog.bindings -}}{{- $_ := set $catalogs (printf "%s/%s" .workspaceId .id) true -}}{{- end -}}
+{{- $bindings := dict -}}
+{{- $hybrid := false -}}
+{{- $usesCatalog := false -}}
+{{- range .Values.search.bindings -}}
+{{- $bindingKey := printf "%s/%s" .workspaceId .id -}}
+{{- if hasKey $bindings $bindingKey -}}{{- fail "Search binding IDs must be unique within each workspace" -}}{{- end -}}
+{{- $_ := set $bindings $bindingKey true -}}
+{{- if eq (trim .name) "" -}}{{- fail "Search binding name must not be blank" -}}{{- end -}}
+{{- if eq .mode "hybrid" -}}
+{{- $hybrid = true -}}
+{{- if not (hasKey $credentials .embedding.credentialsId) -}}{{- fail "Search embedding credentialsId must reference search.credentials" -}}{{- end -}}
+{{- end -}}
+{{- $workspace := .workspaceId -}}
+{{- $seenCatalogs := dict -}}
+{{- range .sources.catalogs -}}
+{{- $usesCatalog = true -}}
+{{- if not $root.Values.catalog.enabled -}}{{- fail "Search catalog sources require catalog.enabled=true" -}}{{- end -}}
+{{- if not (hasKey $catalogs (printf "%s/%s" $workspace .bindingId)) -}}{{- fail "Search catalog source must reference a catalog binding in the same workspace" -}}{{- end -}}
+{{- if hasKey $seenCatalogs .bindingId -}}{{- fail "Search catalog source binding IDs must be unique" -}}{{- end -}}
+{{- $_ := set $seenCatalogs .bindingId true -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.networkPolicy.enabled -}}
+{{- if and $hybrid (empty .Values.search.embeddingEgress) -}}{{- fail "Hybrid search requires explicit search.embeddingEgress for gateway and OAuth endpoints" -}}{{- end -}}
+{{- if and $usesCatalog (empty .Values.search.catalogEgress) -}}{{- fail "Search catalog sources require explicit search.catalogEgress for the worker" -}}{{- end -}}
+{{- if or $hybrid .Values.search.credentials -}}
+{{- range .Values.networkPolicy.httpsEgressCidrs -}}
+{{- if or (eq . "0.0.0.0/0") (eq . "::/0") -}}{{- fail "Search credentials require scoped networkPolicy.httpsEgressCidrs for the API identity provider" -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if gt (len (include "dataslate.searchBindings" .)) 1048576 -}}{{- fail "Search bindings exceed the 1 MiB ConfigMap limit" -}}{{- end -}}
+{{- if gt (len (include "dataslate.searchCatalogBindings" .)) 1048576 -}}{{- fail "Search catalog bindings exceed the 1 MiB ConfigMap limit" -}}{{- end -}}
+{{- else -}}
+{{- if or .Values.search.bindings .Values.search.credentials -}}{{- fail "Search bindings and credentials require search.enabled=true" -}}{{- end -}}
+{{- end -}}
+
+{{- if .Values.sylon.enabled -}}
+{{- $root := . -}}
+{{- $credentials := dict -}}{{- range .Values.sylon.credentials -}}{{- if hasKey $credentials .id -}}{{- fail "Sylon credential IDs must be unique" -}}{{- end -}}{{- $_ := set $credentials .id true -}}{{- end -}}
+{{- $catalogs := dict -}}{{- range .Values.catalog.bindings -}}{{- $_ := set $catalogs (printf "%s/%s" .workspaceId .id) true -}}{{- end -}}
+{{- $searches := dict -}}{{- range .Values.search.bindings -}}{{- $_ := set $searches (printf "%s/%s" .workspaceId .id) true -}}{{- end -}}
+{{- $bindings := dict -}}
+{{- range .Values.sylon.bindings -}}
+{{- $key := printf "%s/%s" .workspaceId .id -}}
+{{- if hasKey $bindings $key -}}{{- fail "Sylon binding IDs must be unique within a workspace" -}}{{- end -}}{{- $_ := set $bindings $key true -}}
+{{- if eq (trim .name) "" -}}{{- fail "Sylon binding name must not be blank" -}}{{- end -}}
+{{- if not (hasKey $credentials .provider.credentialsId) -}}{{- fail "Sylon provider credentialsId must reference sylon.credentials" -}}{{- end -}}
+{{- $subjects := dict -}}{{- range .allowedSubjects -}}
+{{- if ne .issuer $root.Values.oidc.issuer -}}{{- fail "Sylon subject issuers must match oidc.issuer" -}}{{- end -}}
+{{- $subject := printf "%s/%s" .issuer .subject -}}{{- if hasKey $subjects $subject -}}{{- fail "Sylon subject identities must be unique" -}}{{- end -}}{{- $_ := set $subjects $subject true -}}
+{{- end -}}
+{{- $workspace := .workspaceId -}}
+{{- range .context.catalogBindingIds -}}
+{{- if or (not $root.Values.catalog.enabled) (not (hasKey $catalogs (printf "%s/%s" $workspace .))) -}}{{- fail "Sylon catalog context must reference an enabled catalog binding in the same workspace" -}}{{- end -}}
+{{- end -}}
+{{- range .context.searchBindingIds -}}
+{{- if or (not $root.Values.search.enabled) (not (hasKey $searches (printf "%s/%s" $workspace .))) -}}{{- fail "Sylon search context must reference an enabled search binding in the same workspace" -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.networkPolicy.enabled -}}
+{{- if and .Values.sylon.bindings (empty .Values.sylon.providerEgress) -}}{{- fail "Sylon requires explicit sylon.providerEgress for provider and OAuth destinations" -}}{{- end -}}
+{{- if and (include "dataslate.sylonCatalogBindings" . | fromJsonArray) (empty .Values.sylon.catalogEgress) -}}{{- fail "Sylon catalog context requires explicit sylon.catalogEgress" -}}{{- end -}}
+{{- range (include "dataslate.sylonSearchBindings" . | fromJsonArray) -}}
+{{- if and (eq .mode "hybrid") (empty $root.Values.sylon.searchEgress) -}}{{- fail "Sylon hybrid search context requires explicit sylon.searchEgress" -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- range $helper := list "dataslate.sylonBindings" "dataslate.sylonSearchBindings" "dataslate.sylonCatalogBindings" -}}
+{{- if gt (len (include $helper $root)) 1048576 -}}{{- fail "Sylon binding file exceeds the 1 MiB ConfigMap limit" -}}{{- end -}}
+{{- end -}}
+{{- else -}}
+{{- if or .Values.sylon.bindings .Values.sylon.credentials -}}{{- fail "Sylon bindings and credentials require sylon.enabled=true" -}}{{- end -}}
+{{- end -}}

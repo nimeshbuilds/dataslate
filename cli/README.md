@@ -65,3 +65,95 @@ snapshot = client.run_source("ws-example", run["id"])
 Record the binding, notebook ID, revision and key before submitting. Recovery repeats **all four exact values**. The client never fetches or substitutes the latest revision. A first submission against an edited revision fails with a conflict; an already accepted request can be recovered after further edits or deletion while the execution grant remains valid. Source inspection uses the independent caller-owned run snapshot and does not change the shared notebook. Treat exported source as potentially sensitive.
 
 Each notebook batch starts a fresh Python process and executes its saved Python cells in order. This is not an interactive notebook kernel, partial-cell re-execution or a rich table/chart result service. See the [execution contract](../docs/implementation/execution-contract.md) and [validation record](../docs/implementation/validation.md) for identity, quotas, recovery and qualification boundaries.
+
+## Incremental file ingestion
+
+Save a pipeline before submitting its exact revision. Replace the example S3
+prefixes with locations granted by the administrator's ingestion binding:
+
+```sh
+dataslate pipeline create --workspace engineering --file examples/file-ingestion-pipeline.json
+dataslate pipeline list --workspace engineering
+dataslate run submit-pipeline --workspace engineering --binding orders-ingestion \
+  --pipeline PIPELINE_ID --revision 1 --idempotency-key orders-import-001
+dataslate run watch --workspace engineering --id RUN_ID --wait-cleanup
+```
+
+Persist the binding, pipeline ID, revision and idempotency key before submission.
+If the response is interrupted, repeat that exact request. A new key requests a
+new run which resumes the retained checkpoint; it does not reset or backfill it.
+Only one pipeline writer is admitted until the previous workload and source
+cleanup have drained. `--wait-cleanup` observes those obligations as well as the
+application outcome. A failed run still exits with code 3 after cleanup.
+
+`pipeline get`, `update` and `delete` use the same workspace-scoped API as the UI.
+Deletion requires `--revision` so it cannot silently discard concurrent edits.
+Updates require the full definition plus its expected `revision`; only the name
+may change. Source, schema, destination and checkpoint are immutable because a
+changed definition cannot safely inherit the same streaming checkpoint. Deletion
+removes the definition while retaining accepted runs, storage reservations and
+lake data; it never removes an S3 prefix or resets a checkpoint.
+
+Governed SQL executes an exact saved SQL cell through a granted warehouse binding:
+
+```sh
+dataslate query bindings --workspace default
+dataslate query submit --workspace default --binding analytics --notebook nb-example \
+  --revision 3 --cell sql-cell --idempotency-key saved-sql-request-001
+dataslate query watch --workspace default --id qry-example
+dataslate query result --workspace default --id qry-example
+```
+
+Persist the full submission selection and key before sending. Repeat that exact
+request after a lost response; a new key creates another query. `query source`,
+`query list`, `query get` and `query cancel` use the same owner-scoped API as the UI.
+Cancellation is a request until the engine confirms termination. Watch timeouts do
+not cancel queries. Results keep scalars as strings, preserving bigint and decimal
+precision; inspect `complete` and `truncated` before treating them as a full dataset.
+Current workspace membership, subject grants and policy version govern historical
+result access. Shared notebooks contain no execution outputs.
+
+## Catalogs and search
+
+Use the same authorized metadata and search resources as the workspace:
+
+```sh
+dataslate catalog bindings --workspace ws-team
+dataslate catalog verify --workspace ws-team --binding polaris
+dataslate catalog namespaces --workspace ws-team --binding polaris
+dataslate catalog table --workspace ws-team --binding polaris --namespace '["analytics","finance"]' --name orders
+dataslate search status --workspace ws-team
+dataslate search query --workspace ws-team --binding workspace-search --query 'quarterly revenue'
+dataslate search index-notebook --workspace ws-team --binding workspace-search --notebook nb-orders --revision 3 --idempotency-key index-orders-v3
+dataslate search watch --workspace ws-team --id idx-example
+```
+
+Namespace/table lists identify current authorized grants; loading a table performs a real catalog read. Search defaults to lexical mode. `--mode hybrid` sends query text to the administrator-approved embedding provider. Results include current source revisions or catalog policy versions and timestamps; scores are rankings, not probabilities. Catalog snapshots expire and require an explicit `search index-table` refresh. Persist indexing selections and idempotency keys before submission. The CLI never automatically retries an uncertain provider/indexing operation; `unknown`, `superseded` and failed watch outcomes exit nonzero.
+
+## Sylon conversations and proposals
+
+Sylon uses an administrator-approved provider and explicit subject grants. Conversations and generation receipts are private to their owner. A message file preserves the exact prompt, source selection and idempotency key before submission:
+
+```json
+{"prompt":"Explain this SQL and suggest a clearer version.",
+ "idempotencyKey":"sylon-orders-revision-3",
+ "notebook":{"id":"nb-orders","revision":3,"cellId":"sql-cell"}}
+```
+
+```sh
+dataslate sylon bindings --workspace ws-team
+dataslate sylon create --workspace ws-team --binding approved-assistant --title 'Orders analysis'
+dataslate sylon send --workspace ws-team --conversation chat-example --file /private/message.json
+dataslate sylon watch --workspace ws-team --id syl-example
+dataslate sylon get --workspace ws-team --id syl-example
+```
+
+Read the answer, server-provided source citations and proposed code. Applying a reviewed proposal is a separate command targeting the same saved cell/revision:
+
+```sh
+dataslate sylon apply --workspace ws-team --id syl-example --notebook nb-orders --revision 3 --cell sql-cell
+```
+
+Apply updates source once; it never executes SQL or Spark. Use an explicit `query submit` or `run submit-notebook` on the resulting saved revision when ready to execute. An intervening edit causes a revision conflict. `sylon cancel` requests cancellation/discard; a provider request already dispatched may still be processed or billed. An `unknown` watch outcome exits nonzero and does not generate another paid call. `sylon delete --conversation ...` erases the owned conversation and prevents late publication, including after binding revocation; it does not erase data already transferred to a provider.
+
+Optional message contexts use `catalogs:[{bindingId,namespace,name}]` and `search:{bindingId,query,mode}`. The platform restricts them to current approved sources and transfer policies. Credentials, provider endpoints and arbitrary source text are never accepted as context fields. Keep message/answer files private when they contain sensitive data.

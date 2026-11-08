@@ -1,0 +1,210 @@
+{{- if .Values.sylon.enabled }}
+{{- $catalogBindings := include "dataslate.sylonCatalogBindings" . | fromJsonArray }}
+{{- $searchBindings := include "dataslate.sylonSearchBindings" . | fromJsonArray }}
+{{- $searchCredentials := include "dataslate.sylonSearchCredentials" . | fromJsonArray }}
+{{- $catalogCredentials := include "dataslate.sylonCatalogCredentials" . | fromJsonArray }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sylon
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+data:
+  bindings.json: {{ include "dataslate.sylonBindings" . | quote }}
+{{- if $catalogBindings }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sylon-catalog
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+data:
+  bindings.json: {{ $catalogBindings | toJson | quote }}
+{{- end }}
+{{- if $searchBindings }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sylon-search
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+data:
+  bindings.json: {{ $searchBindings | toJson | quote }}
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sylon-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sylon-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.sylon.controller.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: sylon-controller
+  template:
+    metadata:
+      labels:
+        {{- include "dataslate.selector" . | nindent 8 }}
+        app.kubernetes.io/component: sylon-controller
+      annotations:
+        checksum/sylon-search: {{ $searchBindings | toJson | sha256sum }}
+        checksum/sylon-search-credentials: {{ $searchCredentials | toJson | sha256sum }}
+        checksum/sylon-catalog: {{ $catalogBindings | toJson | sha256sum }}
+        checksum/sylon-catalog-credentials: {{ $catalogCredentials | toJson | sha256sum }}
+        checksum/sylon: {{ .Values.sylon | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "dataslate.fullname" . }}-sylon-controller
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- include "dataslate.podSecurityContext" . | nindent 8 }}
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      {{- include "dataslate.scheduling" . | nindent 6 }}
+      containers:
+        - name: sylon-controller
+          image: {{ include "dataslate.image" .Values.sylon.controller.image | quote }}
+          imagePullPolicy: {{ .Values.sylon.controller.image.pullPolicy }}
+          securityContext:
+            {{- include "dataslate.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 8084, protocol: TCP}
+          env:
+            - {name: DATASLATE_SYLON_CONTROLLER_ADDR, value: "0.0.0.0:8084"}
+            - {name: DATASLATE_SYLON_BINDINGS_FILE, value: /etc/dataslate/sylon/bindings.json}
+            {{- if $searchBindings }}
+            - {name: DATASLATE_SEARCH_BINDINGS_FILE, value: /etc/dataslate/search/bindings.json}
+            {{- end }}
+            {{- if $catalogBindings }}
+            - {name: DATASLATE_CATALOG_BINDINGS_FILE, value: /etc/dataslate/catalog/bindings.json}
+            {{- end }}
+            {{- include "dataslate.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.sylon.controller.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: sylon, mountPath: /etc/dataslate/sylon, readOnly: true}
+            {{- include "dataslate.sylonCredentialMounts" .Values.sylon.credentials | nindent 12 }}
+            {{- if $searchBindings }}
+            - {name: sylon-search, mountPath: /etc/dataslate/search, readOnly: true}
+            {{- include "dataslate.searchCredentialMounts" $searchCredentials | nindent 12 }}
+            {{- end }}
+            {{- if $catalogBindings }}
+            - {name: sylon-catalog, mountPath: /etc/dataslate/catalog, readOnly: true}
+            {{- range $catalogCredentials }}
+            - name: catalog-credential-{{ .id }}
+              mountPath: {{ printf "/etc/dataslate/catalog-credentials/%s" .id | quote }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+      volumes:
+        - name: sylon
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-sylon
+        {{- include "dataslate.sylonCredentialVolumes" .Values.sylon.credentials | nindent 8 }}
+        {{- if $searchBindings }}
+        - name: sylon-search
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-sylon-search
+        {{- include "dataslate.searchCredentialVolumes" $searchCredentials | nindent 8 }}
+        {{- end }}
+        {{- if $catalogBindings }}
+        - name: sylon-catalog
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-sylon-catalog
+        {{- range $catalogCredentials }}
+        - name: catalog-credential-{{ .id }}
+          projected:
+            defaultMode: 0440
+            sources:
+              {{- if .bearerTokenSecret }}
+              - secret:
+                  name: {{ .bearerTokenSecret.name | quote }}
+                  items: [{key: {{ .bearerTokenSecret.key | quote }}, path: token}]
+              {{- else }}
+              - secret:
+                  name: {{ .oauth.clientSecret.name | quote }}
+                  items: [{key: {{ .oauth.clientSecret.key | quote }}, path: client-secret}]
+              {{- end }}
+              {{- if .caSecret }}
+              - secret:
+                  name: {{ .caSecret.name | quote }}
+                  items: [{key: {{ .caSecret.key | quote }}, path: ca.crt}]
+              {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- include "dataslate.databaseVolume" . | nindent 8 }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dataslate.fullname" . }}-sylon-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: sylon-controller
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodLabels | nindent 14 }}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        {{- if eq .Values.postgres.mode "managed" }}
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ include "dataslate.postgresName" . }}
+        {{- else }}
+        {{- range .Values.networkPolicy.postgresEgressCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.networkPolicy.postgresPort }}}]
+    {{- range (concat .Values.sylon.providerEgress .Values.sylon.searchEgress .Values.sylon.catalogEgress) }}
+    - to:
+        - ipBlock: {cidr: {{ .cidr | quote }}}
+      ports: [{protocol: TCP, port: {{ .port }}}]
+    {{- end }}
+{{- end }}
+{{- end }}

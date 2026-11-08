@@ -214,6 +214,12 @@ func (s *PostgresStore) SaveNotebook(ctx context.Context, ws, id string, in Note
 	if err != nil {
 		return Notebook{}, storeError(err)
 	}
+	if _, err = tx.Exec(ctx, "DELETE FROM dataslate_search_documents WHERE workspace_id=$1 AND notebook_id=$2", ws, n.ID); err != nil {
+		return Notebook{}, err
+	}
+	if _, err = tx.Exec(ctx, "INSERT INTO dataslate_search_changes(notebook_id,workspace_id,revision) VALUES($1,$2,$3) ON CONFLICT(notebook_id) DO UPDATE SET revision=EXCLUDED.revision", n.ID, ws, n.Revision); err != nil {
+		return Notebook{}, err
+	}
 	doc, err := json.Marshal(n)
 	if err != nil {
 		return Notebook{}, err

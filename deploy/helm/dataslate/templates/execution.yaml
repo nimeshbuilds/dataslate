@@ -34,6 +34,10 @@ rules:
   - apiGroups: [""]
     resources: [configmaps]
     verbs: [get, create, patch, delete]
+  # Retain read-only Pod access until all ingestion writers have drained.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
 {{- end }}
 {{- if eq $component "api" }}
   - apiGroups: [""]

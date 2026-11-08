@@ -1,0 +1,58 @@
+{
+  "date": "2026-11-07",
+  "scope": "Owned local Kubernetes TPCH fixture; not cloud or lake-connector qualification",
+  "cluster": "k3s v1.35.0+k3s1 linux/arm64",
+  "profile": {
+    "trino": "484",
+    "chart": "1.45.0",
+    "image": "trinodb/trino@sha256:2704eb53935af5e582d63d6033e9bf99d20c325e9b0e30b1016ef59a4773979f",
+    "coordinators": 1,
+    "workers": 1
+  },
+  "deployment": {
+    "coordinatorReady": true,
+    "workerReady": true,
+    "existingServiceAccount": "dataslate-trino-reader",
+    "serviceAccountTokenAutomount": false,
+    "awsInstanceMetadataCredentialsDisabled": true,
+    "runAsUID": 1000,
+    "readOnlyRootFilesystem": true,
+    "verifiedInternalTLS": true,
+    "verifiedClientTLS": true
+  },
+  "productionTransport": {
+    "command": "go test -race ./internal/trino -run TestLive -count=1 -v",
+    "result": "PASS",
+    "rowFilterReturnedRows": 5,
+    "columnMask": "REDACTED",
+    "exactSigned64BitAndDecimalPreserved": true,
+    "terminalFinishedObserved": true,
+    "mutationDenied": true,
+    "ungrantedTableDenied": true,
+    "systemMetadataDenied": true,
+    "RuntimeLimitOverrideDenied": true,
+    "cancellationTerminalUserCanceledObserved": true
+  },
+  "additionalAuthentication": {
+    "missingJWTHTTP": 401,
+    "ungrantedImpersonationError": "PERMISSION_DENIED",
+    "ungrantedImpersonationRows": 0
+  },
+  "networkPolicy": {
+    "unlabeledPodTCPDenied": true,
+    "matchingClientLabelTCPAllowed": true,
+    "labelRemovedTCPDeniedAgain": true,
+    "target": "Service TCP/8443"
+  },
+  "automated": {
+    "pythonProfileAndPolicyTests": 8,
+    "pinnedHelmChartRendered": true
+  },
+  "notQualified": [
+    "AWS EKS/S3, IRSA or cloud lake access",
+    "Delta or Iceberg connector interoperability",
+    "External IdP identity integration",
+    "HA, failover, backup/restore, upgrades or load",
+    "Production CNI NetworkPolicy behavior"
+  ]
+}

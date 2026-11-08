@@ -1,0 +1,30 @@
+# Overlay eks-external.yaml after replacing private endpoint/CIDR and Secret names.
+# For lexical-only search set mode: lexical, dataTransferAccepted: false, remove
+# embedding, leave credentials/embeddingEgress empty, and keep the same worker.
+networkPolicy:
+  httpsEgressCidrs: [10.40.0.12/32] # existing OIDC provider, never a universal egress
+search:
+  enabled: true
+  bindings:
+    - id: workspace-search
+      workspaceId: default
+      name: Company discovery
+      policyVersion: v1
+      mode: hybrid
+      maxDocuments: 1000
+      sources:
+        notebooks: true
+        includeCellSource: false
+        catalogs: []
+      dataTransferAccepted: true
+      embedding:
+        endpoint: https://embeddings.internal.example.com/v1/embeddings
+        model: approved-embedding
+        dimensions: 1024
+        credentialsId: discovery
+  credentials:
+    - id: discovery
+      bearerTokenSecret: {name: dataslate-embedding-reader, key: token}
+      caSecret: {name: dataslate-embedding-ca, key: ca.crt}
+  embeddingEgress: [{cidr: 10.70.0.12/32, port: 443}]
+  catalogEgress: []

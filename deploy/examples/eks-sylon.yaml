@@ -1,0 +1,29 @@
+# Overlay eks-external.yaml. Only the independent worker receives model credentials.
+sylon:
+  enabled: true
+  bindings:
+    - id: sylon
+      workspaceId: default
+      name: Company assistant
+      policyVersion: v1
+      dataTransferAccepted: true
+      maxContextBytes: 32000
+      allowedSubjects:
+        - {issuer: https://identity.example.com/realms/dataslate, subject: engineer-123}
+      context:
+        notebookCellSource: true
+        catalogBindingIds: []
+        searchBindingIds: []
+      provider:
+        protocol: responses
+        endpoint: https://models.internal.example.com/v1/responses
+        model: approved-model
+        maxOutputTokens: 2048
+        credentialsId: assistant
+  credentials:
+    - id: assistant
+      bearerTokenSecret: {name: dataslate-model-provider, key: token}
+      caSecret: {name: dataslate-model-ca, key: ca.crt}
+  providerEgress: [{cidr: 10.80.0.12/32, port: 443}]
+  searchEgress: []
+  catalogEgress: []

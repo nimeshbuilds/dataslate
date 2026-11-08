@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        image: pgvector/pgvector:0.8.7-pg17@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8
         env:
           POSTGRES_DB: dataslate_test
           POSTGRES_USER: dataslate
@@ -33,13 +33,24 @@ jobs:
         with:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
+      - name: Install the explicitly selected vector extension
+        run: psql "$DATASLATE_TEST_DATABASE_URL" -f deploy/search/enable-vector.sql
+        env:
+          DATASLATE_TEST_DATABASE_URL: postgres://dataslate:dataslate-ci-only@127.0.0.1:5432/dataslate_test?sslmode=disable
       - name: API tests and vet
         run: make test-api
         env:
           # Ephemeral CI database only; production requires verified TLS.
           DATASLATE_TEST_DATABASE_URL: postgres://dataslate:dataslate-ci-only@127.0.0.1:5432/dataslate_test?sslmode=disable
+          DATASLATE_TEST_REQUIRE_VECTOR: "1"
       - name: API image build
         run: docker build -t dataslate-api:ci api
+      - name: SQL controller image build
+        run: docker build -f api/SQLControllerDockerfile -t dataslate-sql-controller:ci api
+      - name: Search controller image build
+        run: docker build -f api/SearchControllerDockerfile -t dataslate-search-controller:ci api
+      - name: Sylon controller image build
+        run: docker build -f api/SylonControllerDockerfile -t dataslate-sylon-controller:ci api
       - name: Execution controller image build
         run: docker build -f api/ControllerDockerfile -t dataslate-controller:ci api
 
@@ -55,6 +66,8 @@ jobs:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
       - run: make test-sdk
+      - name: Ingestion runtime contract tests
+        run: python -m unittest discover -s runtime/ingestion/tests -p 'test_*.py' -v
       - run: python -m pip install ./sdk/python
       - run: dataslate --help
       - name: Real API and SDK smoke
@@ -93,13 +106,40 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with: {python-version: "3.12"}
       - run: python -m pip install -r deploy/tests/requirements.txt
+      - name: Verify immutable application base images
+        run: python deploy/scripts/check-base-images.py
       - name: Install verified local Helm binary
         run: python deploy/scripts/fetch-helm.py
       - name: Fetch verified upstream bootstrap charts
         run: python deploy/scripts/fetch-upstream.py
+      - name: Fetch pinned SQL chart
+        run: python deploy/sql/fetch.py
+      - name: Fetch pinned Polaris chart
+        run: python deploy/polaris/fetch.py
+      - name: Validate governed SQL profile
+        run: python -m unittest discover -s deploy/sql -p 'test_*.py' -v
+        env:
+          HELM_BIN: deploy/.cache/helm
+      - name: Validate Polaris profile
+        run: python -m unittest discover -s deploy/polaris -p 'test_*.py' -v
+        env:
+          HELM_BIN: deploy/.cache/helm
       - name: Validate compute boundary generator
         run: python -m unittest discover -s deploy/compute -p 'test_*.py' -v
       - name: Validate deployment profiles
         run: bash deploy/scripts/check.sh
         env:
           HELM_BIN: deploy/.cache/helm
+
+  ingestion-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: {persist-credentials: false}
+      - name: Build the pinned Spark and Delta runtime
+        run: docker build -t dataslate-ingestion:qualification runtime/ingestion
+      - name: Build the offline qualification harness
+        run: docker build -f runtime/ingestion/QualificationDockerfile -t dataslate-ingestion-tests:qualification runtime/ingestion
+      - name: Real JVM ingestion qualification
+        run: docker run --rm --network none --memory 4g --cpus 2 dataslate-ingestion-tests:qualification

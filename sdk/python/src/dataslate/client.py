@@ -10,7 +10,7 @@ import time
 from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 
@@ -28,7 +28,7 @@ class _NoRedirect(HTTPRedirectHandler):
 
 
 def _segment(value: str) -> str:
-    if not value or value in {".", ".."} or any(c in value for c in "/\\\x00"):
+    if not isinstance(value, str) or not value or value in {".", ".."} or any(c in value for c in "/\\\x00"):
         raise ValueError("A nonempty resource ID without path separators is required")
     return quote(value, safe="")
 
@@ -47,7 +47,7 @@ class Client:
     """
 
     def __init__(self, base_url: str = "http://127.0.0.1:8080", *, token: str | None = None,
-                 timeout: float = 30, max_response_bytes: int = 8 * 1024 * 1024):
+                 timeout: float = 30, max_response_bytes: int = 16 * 1024 * 1024):
         parsed = urlsplit(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise ValueError("API URL must have an HTTP(S) scheme and host")
@@ -86,9 +86,15 @@ class Client:
         except (ValueError, UnicodeDecodeError) as exc:
             raise DataSlateError("invalid_response", "API returned invalid JSON") from exc
 
-    def request(self, method: str, path: str, body: dict[str, Any] | None = None) -> Any:
+    def request(self, method: str, path: str, body: dict[str, Any] | None = None,
+                *, query: dict[str, str | int] | None = None) -> Any:
         if not path.startswith("/api/v1/") or any(c in path for c in "\r\n?#"):
             raise ValueError("Only a relative DataSlate API path is accepted")
+        if query:
+            if any(not isinstance(k, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", k)
+                   or isinstance(v, bool) or not isinstance(v, (str, int)) for k, v in query.items()):
+                raise ValueError("Query parameters require named string or integer values")
+            path += "?" + urlencode(query)
         headers = {"Accept": "application/json", "User-Agent": "dataslate-python/0.1.0a1"}
         if self._token:
             headers["Authorization"] = "Bearer " + self._token
@@ -147,8 +153,29 @@ class Client:
         return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/spark-applications/preview", application)
 
     def execution_bindings(self, workspace_id: str):
-        """Return explicitly granted application or notebook engineering bindings."""
+        """Return explicitly granted application, notebook and ingestion bindings."""
         return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/execution-bindings")
+
+    def ingestion_pipelines(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/ingestion-pipelines")
+
+    def ingestion_pipeline(self, workspace_id: str, pipeline_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/ingestion-pipelines/{_segment(pipeline_id)}")
+
+    def create_ingestion_pipeline(self, workspace_id: str, pipeline: dict[str, Any]):
+        """Save a versioned file-to-Delta definition; this does not start ingestion."""
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/ingestion-pipelines", pipeline)
+
+    def update_ingestion_pipeline(self, workspace_id: str, pipeline_id: str, pipeline: dict[str, Any]):
+        """Update using the expected revision; storage and checkpoint configuration is immutable."""
+        return self.request("PUT", f"/api/v1/workspaces/{_segment(workspace_id)}/ingestion-pipelines/{_segment(pipeline_id)}", pipeline)
+
+    def delete_ingestion_pipeline(self, workspace_id: str, pipeline_id: str, revision: int):
+        """Remove the definition; retain storage reservations, runs, data and checkpoints."""
+        if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+            raise ValueError("revision must be a positive integer for the saved pipeline")
+        return self.request("DELETE", f"/api/v1/workspaces/{_segment(workspace_id)}/ingestion-pipelines/{_segment(pipeline_id)}",
+                            query={"revision": revision})
 
     def runs(self, workspace_id: str):
         """Return at most 200 owned run summaries; fetch events separately."""
@@ -183,6 +210,21 @@ class Client:
     def run(self, workspace_id: str, run_id: str):
         return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/runs/{_segment(run_id)}")
 
+    def create_ingestion_run(self, workspace_id: str, binding_id: str,
+                             pipeline_id: str, revision: int, *, idempotency_key: str):
+        """Accept one saved pipeline revision; preserve the exact selection and key for recovery.
+
+        A new explicit run resumes the pipeline's retained checkpoint after the old
+        writer has drained. This never resets checkpoints or retries a mutation.
+        """
+        if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+            raise ValueError("revision must be a positive integer for the saved pipeline")
+        _segment(pipeline_id)
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/runs", {
+            "bindingId": binding_id, "idempotencyKey": _run_key(idempotency_key),
+            "pipeline": {"id": pipeline_id, "revision": revision},
+        })
+
     def cancel_run(self, workspace_id: str, run_id: str):
         """Request cancellation; the returned state is not proof of termination."""
         return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/runs/{_segment(run_id)}/cancel", {})
@@ -194,16 +236,280 @@ class Client:
         return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/runs/{_segment(run_id)}/logs")
 
     def run_source(self, workspace_id: str, run_id: str):
-        """Read the caller-owned immutable notebook snapshot, if this is a notebook run."""
+        """Read the caller-owned immutable notebook or ingestion source snapshot."""
         return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/runs/{_segment(run_id)}/source")
 
+    def sql_bindings(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sql-bindings")
+
+    def catalog_bindings(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/catalog-bindings")
+
+    def verify_catalog(self, workspace_id: str, binding_id: str):
+        """Probe the configured catalog; this does not grant access or create tables."""
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/catalog-bindings/{_segment(binding_id)}/verify", {})
+
+    def catalog_namespaces(self, workspace_id: str, binding_id: str):
+        """List authorized grant identifiers; they are not proof that tables exist."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/catalog-bindings/{_segment(binding_id)}/namespaces")
+
+    def catalog_tables(self, workspace_id: str, binding_id: str, namespace: list[str]):
+        self._catalog_namespace(namespace)
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/catalog-bindings/{_segment(binding_id)}/tables",
+                            query={"namespace": json.dumps(namespace, ensure_ascii=False, separators=(",", ":"))})
+
+    def catalog_table(self, workspace_id: str, binding_id: str, namespace: list[str], name: str):
+        """Load current authorized metadata; refresh catalog discovery when needed."""
+        self._catalog_namespace(namespace)
+        if not isinstance(name, str) or not name or any(ord(c) < 32 for c in name):
+            raise ValueError("A table name without control characters is required")
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/catalog-bindings/{_segment(binding_id)}/table",
+                            {"namespace": namespace, "name": name})
+
+    @staticmethod
+    def _catalog_namespace(namespace: list[str]):
+        if (not isinstance(namespace, list) or not namespace or len(namespace) > 8
+                or any(not isinstance(part, str) or not part or any(ord(c) < 32 for c in part) for part in namespace)):
+            raise ValueError("Namespace must be a nonempty list of at most eight names without control characters")
+
+    def queries(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/queries")
+
+    def sylon_bindings(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/bindings")
+
+    def sylon_conversations(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/conversations")
+
+    def create_sylon_conversation(self, workspace_id: str, binding_id: str, title: str):
+        _segment(binding_id)
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/conversations",
+                            {"bindingId": binding_id, "title": title})
+
+    def sylon_conversation(self, workspace_id: str, conversation_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/conversations/{_segment(conversation_id)}")
+
+    def delete_sylon_conversation(self, workspace_id: str, conversation_id: str):
+        """Erase an owned conversation and prevent later job publication. Does not reverse provider processing."""
+        return self.request("DELETE", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/conversations/{_segment(conversation_id)}")
+
+    def send_sylon_message(self, workspace_id: str, conversation_id: str, prompt: str, *,
+                           idempotency_key: str, notebook: dict[str, Any] | None = None,
+                           catalogs: list[dict[str, Any]] | None = None, search: dict[str, Any] | None = None):
+        """Accept one private assistant intent. Context uses resource IDs, never provider credentials.
+
+        Persist the exact prompt/context/key before sending. A model response is
+        advice or a proposal; applying source and executing it are separate actions.
+        """
+        if not isinstance(prompt, str) or not prompt.strip() or "\x00" in prompt or len(prompt.encode("utf-8")) > 8192:
+            raise ValueError("Sylon prompt must be nonempty and at most 8192 UTF-8 bytes")
+        body: dict[str, Any] = {"prompt": prompt, "idempotencyKey": _run_key(idempotency_key)}
+        if notebook is not None:
+            if (not isinstance(notebook, dict) or set(notebook) != {"id", "revision", "cellId"}
+                    or type(notebook["revision"]) is not int or notebook["revision"] < 1):
+                raise ValueError("Notebook context requires exact id, positive revision and cellId")
+            _segment(notebook["id"])
+            _segment(notebook["cellId"])
+            body["notebook"] = notebook
+        if catalogs is not None:
+            if not isinstance(catalogs, list) or len(catalogs) > 4:
+                raise ValueError("At most four catalog selections are accepted")
+            for catalog in catalogs:
+                if not isinstance(catalog, dict) or set(catalog) != {"bindingId", "namespace", "name"}:
+                    raise ValueError("Catalog context requires bindingId, namespace and name")
+                _segment(catalog["bindingId"])
+                self._catalog_namespace(catalog["namespace"])
+                if not isinstance(catalog["name"], str) or not catalog["name"] or any(ord(c) < 32 for c in catalog["name"]):
+                    raise ValueError("Invalid catalog table name")
+            body["catalogs"] = catalogs
+        if search is not None:
+            if (not isinstance(search, dict) or set(search) != {"bindingId", "query", "mode"}
+                    or search["mode"] not in ("lexical", "hybrid") or not isinstance(search["query"], str)
+                    or not search["query"].strip() or "\x00" in search["query"] or len(search["query"].encode("utf-8")) > 4096):
+                raise ValueError("Search context requires bindingId, bounded query and lexical/hybrid mode")
+            _segment(search["bindingId"])
+            body["search"] = search
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/conversations/{_segment(conversation_id)}/messages", body)
+
+    def sylon_job(self, workspace_id: str, job_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/jobs/{_segment(job_id)}")
+
+    def cancel_sylon_job(self, workspace_id: str, job_id: str):
+        """Request cancellation/discard; an already dispatched provider call may still be billed."""
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/jobs/{_segment(job_id)}/cancel", {})
+
+    def apply_sylon_proposal(self, workspace_id: str, job_id: str, notebook_id: str, revision: int, cell_id: str):
+        """Apply an owned proposal once to its exact saved source target. This never runs code."""
+        _segment(notebook_id)
+        _segment(cell_id)
+        if type(revision) is not int or revision < 1:
+            raise ValueError("revision must be a positive integer for the saved notebook")
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/jobs/{_segment(job_id)}/apply",
+                            {"notebookId": notebook_id, "revision": revision, "cellId": cell_id})
+
+    def watch_sylon_job(self, workspace_id: str, job_id: str, *, interval: float = 2, max_wait: float = 300):
+        """Poll without replaying generation. Unknown outcomes stop with no automatic model retry."""
+        if not all(math.isfinite(v) and v > 0 for v in (interval, max_wait)):
+            raise ValueError("interval and max_wait must be finite positive seconds")
+        deadline, previous = time.monotonic() + max_wait, None
+        while True:
+            current = self.sylon_job(workspace_id, job_id)
+            if (not isinstance(current, dict) or current.get("id") != job_id
+                    or current.get("workspaceId") != workspace_id
+                    or current.get("state") not in {"queued", "preparing", "generating", "succeeded", "failed", "unknown", "cancel_requested", "cancelled"}
+                    or type(current.get("revision")) is not int or current["revision"] < 1):
+                raise DataSlateError("invalid_response", "Sylon job has an invalid identity, state or revision")
+            if current != previous:
+                yield current
+                previous = current
+            if current["state"] in {"succeeded", "failed", "unknown", "cancelled"}:
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DataSlateError("watch_timeout", "Stopped watching; Sylon may still be processing")
+            time.sleep(min(interval, remaining))
+            if time.monotonic() >= deadline:
+                raise DataSlateError("watch_timeout", "Stopped watching; Sylon may still be processing")
+
+    def search_status(self, workspace_id: str):
+        """Read public search bindings and vector availability; credentials are never returned."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/search/status")
+
+    def search(self, workspace_id: str, binding_id: str, query: str, *, mode: str = "lexical", limit: int = 10):
+        """Search current authorized documents. Hybrid mode sends query text to the configured provider.
+
+        Scores express ranking, not calibrated probabilities. Results carry source
+        revision/policy and timestamps; catalog snapshots have a bounded expiry.
+        """
+        _segment(binding_id)
+        if (not isinstance(query, str) or not query.strip() or "\x00" in query or len(query.encode("utf-8")) > 4096
+                or mode not in ("lexical", "hybrid") or type(limit) is not int or not 1 <= limit <= 20):
+            raise ValueError("Search requires nonempty query up to 4096 UTF-8 bytes, lexical/hybrid mode and limit 1–20")
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/search",
+                            {"bindingId": binding_id, "query": query, "mode": mode, "limit": limit})
+
+    def index_notebook(self, workspace_id: str, binding_id: str, notebook_id: str,
+                       revision: int, *, idempotency_key: str):
+        """Index an exact saved revision. Persist the selection/key before sending; never retried here."""
+        _segment(binding_id)
+        _segment(notebook_id)
+        if type(revision) is not int or revision < 1:
+            raise ValueError("revision must be a positive integer for the saved notebook")
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/search/index", {
+            "bindingId": binding_id, "idempotencyKey": _run_key(idempotency_key),
+            "notebook": {"id": notebook_id, "revision": revision},
+        })
+
+    def index_catalog_table(self, workspace_id: str, binding_id: str, catalog_binding_id: str,
+                            namespace: list[str], name: str, *, idempotency_key: str):
+        """Queue an authorized metadata refresh; no table rows or storage credentials are indexed."""
+        _segment(binding_id)
+        _segment(catalog_binding_id)
+        self._catalog_namespace(namespace)
+        if not isinstance(name, str) or not name or any(ord(c) < 32 for c in name):
+            raise ValueError("A table name without control characters is required")
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/search/index", {
+            "bindingId": binding_id, "idempotencyKey": _run_key(idempotency_key),
+            "catalog": {"bindingId": catalog_binding_id, "namespace": namespace, "name": name},
+        })
+
+    def search_index_job(self, workspace_id: str, job_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/search/index-jobs/{_segment(job_id)}")
+
+    def watch_search_index(self, workspace_id: str, job_id: str, *, interval: float = 2,
+                           max_wait: float = 300):
+        """Poll an owned job. Unknown provider outcomes stop without automatic resubmission."""
+        if not all(math.isfinite(v) and v > 0 for v in (interval, max_wait)):
+            raise ValueError("interval and max_wait must be finite positive seconds")
+        deadline, previous = time.monotonic() + max_wait, None
+        while True:
+            current = self.search_index_job(workspace_id, job_id)
+            if (not isinstance(current, dict) or current.get("id") != job_id
+                    or current.get("workspaceId") != workspace_id
+                    or current.get("state") not in {"queued", "indexing", "succeeded", "failed", "unknown", "superseded"}
+                    or type(current.get("revision")) is not int or current["revision"] < 1):
+                raise DataSlateError("invalid_response", "Search job has an invalid identity, state or revision")
+            if current != previous:
+                yield current
+                previous = current
+            if current["state"] in {"succeeded", "failed", "unknown", "superseded"}:
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DataSlateError("watch_timeout", "Stopped watching; indexing may still be active")
+            time.sleep(min(interval, remaining))
+            if time.monotonic() >= deadline:
+                raise DataSlateError("watch_timeout", "Stopped watching; indexing may still be active")
+
+    def create_query(self, workspace_id: str, binding_id: str, notebook_id: str,
+                     revision: int, cell_id: str, *, idempotency_key: str):
+        """Execute one exact saved SQL cell. Persist this selection and key before sending.
+
+        After an uncertain response, repeat exactly the same selection and key.
+        This method never retries POST or fetches a newer notebook revision.
+        """
+        if isinstance(revision, bool) or not isinstance(revision, int) or revision < 1:
+            raise ValueError("revision must be a positive integer for the saved notebook")
+        _segment(notebook_id)
+        _segment(cell_id)
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/queries", {
+            "bindingId": binding_id, "idempotencyKey": _run_key(idempotency_key),
+            "notebook": {"id": notebook_id, "revision": revision, "cellId": cell_id},
+        })
+
+    def query(self, workspace_id: str, query_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/queries/{_segment(query_id)}")
+
+    def query_source(self, workspace_id: str, query_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/queries/{_segment(query_id)}/source")
+
+    def query_result(self, workspace_id: str, query_id: str):
+        """Read owner-scoped results; scalar values stay strings to preserve exact numbers.
+
+        Inspect complete/truncated before aggregating or exporting as a full result.
+        Access is reevaluated against the current binding and policy version.
+        """
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/queries/{_segment(query_id)}/result")
+
+    def cancel_query(self, workspace_id: str, query_id: str):
+        """Request cancellation; acceptance does not prove engine termination."""
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/queries/{_segment(query_id)}/cancel", {})
+
+    def watch_query(self, workspace_id: str, query_id: str, *, interval: float = 2,
+                    max_wait: float = 300):
+        """Poll GET only. Timeout/interruption does not cancel the backend query."""
+        if not all(math.isfinite(v) and v > 0 for v in (interval, max_wait)):
+            raise ValueError("interval and max_wait must be finite positive seconds")
+        deadline, previous = time.monotonic() + max_wait, None
+        while True:
+            current = self.query(workspace_id, query_id)
+            if (not isinstance(current, dict) or current.get("id") != query_id
+                    or current.get("workspaceId") != workspace_id
+                    or current.get("state") not in {"queued", "submitting", "running", "succeeded", "failed", "cancel_requested", "cancelled", "unknown"}
+                    or isinstance(current.get("revision"), bool) or not isinstance(current.get("revision"), int)
+                    or current["revision"] < 1):
+                raise DataSlateError("invalid_response", "Query response has an invalid identity, state or revision")
+            if current != previous:
+                yield current
+                previous = current
+            if current["state"] in {"succeeded", "failed", "cancelled"}:
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DataSlateError("watch_timeout", "Stopped watching; the backend query may still be active")
+            time.sleep(min(interval, remaining))
+            if time.monotonic() >= deadline:
+                raise DataSlateError("watch_timeout", "Stopped watching; the backend query may still be active")
+
     def watch_run(self, workspace_id: str, run_id: str, *, interval: float = 2,
-                  max_wait: float = 300):
+                  max_wait: float = 300, wait_for_cleanup: bool = False):
         """Yield changed observed states until terminal or the polling budget expires.
 
         Only GET is repeated. Timeout or interruption does not cancel the backend job.
         Each request also has the client's transport timeout, so completion may exceed
         max_wait by at most one request timeout. Errors propagate without hidden retries.
+        Set wait_for_cleanup to observe source cleanup and the ingestion writer drain;
+        a terminal application state alone does not permit another pipeline writer.
         """
         if not all(math.isfinite(v) and v > 0 for v in (interval, max_wait)):
             raise ValueError("interval and max_wait must be finite positive seconds")
@@ -220,7 +526,11 @@ class Client:
                 yield current
                 previous = current
             if current["state"] in {"succeeded", "failed", "cancelled"}:
-                return
+                artifact = current.get("sourceArtifact")
+                source_clean = artifact is None or (isinstance(artifact, dict) and artifact.get("state") == "deleted")
+                writer_clean = current.get("ingestion") is None or current.get("writerReleased") is True
+                if not wait_for_cleanup or (source_clean and writer_clean):
+                    return
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise DataSlateError("watch_timeout", "Stopped watching; the backend run may still be active")

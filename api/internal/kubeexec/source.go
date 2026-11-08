@@ -32,7 +32,7 @@ func (c *Client) sourceManifest(r platform.Run) (sourceConfigMap, error) {
 	if err != nil {
 		return sourceConfigMap{}, err
 	}
-	return sourceConfigMap{APIVersion: "v1", Kind: "ConfigMap", Metadata: objectMeta{Name: r.SourceArtifact.Name, Namespace: r.Profile.Namespace, Labels: app.Metadata.Labels, Annotations: map[string]string{"dataslate.io/source-sha256": r.Notebook.SHA256}}, Immutable: true, Data: map[string]string{"source.py": r.Source.Source}}, nil
+	return sourceConfigMap{APIVersion: "v1", Kind: "ConfigMap", Metadata: objectMeta{Name: r.SourceArtifact.Name, Namespace: r.Profile.Namespace, Labels: app.Metadata.Labels, Annotations: map[string]string{"dataslate.io/source-sha256": r.SourceSHA256()}}, Immutable: true, Data: map[string]string{"source.py": r.Source.Source}}, nil
 }
 func sourceOwner(r platform.Run) ownerReference {
 	return ownerReference{APIVersion: "spark.apache.org/v1", Kind: "SparkApplication", Name: r.KubernetesName, UID: r.KubernetesUID, Controller: true, BlockOwnerDeletion: false}
@@ -40,18 +40,18 @@ func sourceOwner(r platform.Run) ownerReference {
 func verifySource(actual, expected sourceConfigMap, r platform.Run) error {
 	m := actual.Metadata
 	if actual.APIVersion != "v1" || actual.Kind != "ConfigMap" || m.Name != expected.Metadata.Name || m.Namespace != expected.Metadata.Namespace || m.UID == "" || len(m.UID) > 256 || m.ResourceVersion == "" || m.DeletionTimestamp != "" || r.SourceArtifact.UID != "" && m.UID != r.SourceArtifact.UID {
-		return errors.New("notebook source identity mismatch")
+		return errors.New("execution source identity mismatch")
 	}
-	if !actual.Immutable || !reflect.DeepEqual(actual.Data, expected.Data) || len(actual.BinaryData) > 0 || m.Annotations["dataslate.io/source-sha256"] != r.Notebook.SHA256 {
-		return errors.New("immutable notebook source changed")
+	if !actual.Immutable || !reflect.DeepEqual(actual.Data, expected.Data) || len(actual.BinaryData) > 0 || m.Annotations["dataslate.io/source-sha256"] != r.SourceSHA256() {
+		return errors.New("immutable execution source changed")
 	}
 	for k, v := range expected.Metadata.Labels {
 		if m.Labels[k] != v {
-			return errors.New("notebook source ownership mismatch")
+			return errors.New("execution source ownership mismatch")
 		}
 	}
 	if len(m.OwnerReferences) > 0 && (r.KubernetesUID == "" || len(m.OwnerReferences) != 1 || m.OwnerReferences[0] != sourceOwner(r)) {
-		return errors.New("notebook source owner reference mismatch")
+		return errors.New("execution source owner reference mismatch")
 	}
 	return nil
 }

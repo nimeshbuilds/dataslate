@@ -18,13 +18,13 @@ export function Modal({ title, children, onClose }: { title: string; children: R
   const dialog = useRef<HTMLElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    if (!dialog.current?.contains(document.activeElement)) dialog.current?.querySelector<HTMLElement>('button, input, select, [tabindex="0"]')?.focus();
+    if (!dialog.current?.contains(document.activeElement)) dialog.current?.querySelector<HTMLElement>('button, input, select, textarea, [tabindex="0"]')?.focus();
     return () => previous?.focus();
   }, []);
   return <div className="modal-backdrop" onClick={onClose}><section ref={dialog} className="modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} onKeyDown={(event) => {
     if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
     if (event.key !== 'Tab') return;
-    const elements = [...(dialog.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex="0"]') ?? [])];
+    const elements = [...(dialog.current?.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex="0"]') ?? [])];
     const first = elements[0], last = elements[elements.length - 1];
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }

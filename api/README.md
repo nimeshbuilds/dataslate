@@ -1,6 +1,6 @@
 # DataSlate API foundation
 
-A real Go control plane for workspace membership, persistent notebook/SQL documents, revision conflicts and history, deployment dependency planning, and two distinct SparkApplication preview compilers. An opt-in durable controller submits approved immutable Python applications or exact saved Python notebook snapshots to the Apache Spark operator. Interactive kernels, SQL execution, ingestion connectors, models and Sylon remain separate integration work. The broad module catalog is engineering scope and implementation status, not a list of installed backends.
+A real Go control plane for workspace membership, persistent notebook/SQL documents, revision conflicts and history, deployment dependency planning, and two distinct SparkApplication preview compilers. An opt-in durable controller submits approved immutable Python applications or exact saved Python notebook snapshots to the Apache Spark operator. Additional durable controllers provide Trino SQL, metadata indexing and Sylon generation. Versioned file ingestion and Polaris schema discovery share the workspace API. Interactive kernels, general source connectors and Agent Studio remain separate integration work. The broad module catalog is engineering scope and implementation status, not a list of installed backends.
 
 ## Run
 
@@ -33,6 +33,10 @@ Configure secrets through the deployment environment, not command-line flags. Mi
 | `DATASLATE_OIDC_AUDIENCE` | API access-token audience; must differ from browser client ID |
 | `DATASLATE_OIDC_CLIENT_ID` | Public browser OIDC client identifier |
 | `DATASLATE_EXECUTION_BINDINGS_FILE` | Optional mounted JSON policy for immutable applications and issuer-qualified grants |
+| `DATASLATE_SQL_BINDINGS_FILE` | Optional granted Trino identities and read-only policy versions; shared with SQL controller |
+| `DATASLATE_CATALOG_BINDINGS_FILE` | Optional Polaris connection references and exact current table grants |
+| `DATASLATE_SEARCH_BINDINGS_FILE` | Optional lexical/hybrid source, model and transfer profiles; shared with search controller |
+| `DATASLATE_SYLON_BINDINGS_FILE` | Optional approved provider/model, context-transfer policy and exact subjects; provider credentials are mounted only in the Sylon controller |
 | `DATASLATE_EXECUTION_NAMESPACES` | Explicit space-separated Kubernetes execution namespace allowlist, retained until runs are drained |
 | `DATASLATE_OIDC_SCOPES` | Space-separated browser scopes; defaults to `openid profile`; configure the provider-specific API scope too |
 
@@ -65,9 +69,13 @@ Creation returns the new workspace ID. The administrator must assign membership 
 - `DELETE /api/v1/workspaces/{workspaceId}/notebooks/{id}?revision=N` deletes the document and its saved revision history; optimistic revision is mandatory.
 - `GET /api/v1/workspaces/{workspaceId}/notebooks/{id}/revisions` returns `{items:[Notebook]}`.
 - `GET .../execution-bindings` and the run create/list/get/cancel/events/logs routes implement [approved batch execution](../docs/implementation/execution-contract.md). Submission is unavailable until explicit bindings are configured.
-- `POST .../sylon/messages` returns HTTP 501 `capability_unavailable`, after workspace authorization. No assistant response is simulated.
+- Versioned `ingestion-pipelines` and pipeline run selection implement [incremental file ingestion](../docs/implementation/ingestion-contract.md).
+- `sql-bindings` and `queries` implement [governed SQL](../docs/implementation/sql-contract.md), exact saved-cell snapshots, cancellation and owner-scoped precise results.
+- `catalog-bindings` exposes [authorized Polaris metadata](../docs/implementation/catalog-contract.md), discovery verification and native Iceberg schema reads.
+- `search`, `search/status`, `search/index` and `search/index-jobs` implement [authorized lexical/hybrid retrieval](../docs/implementation/search-contract.md) and durable indexing.
+- `sylon/bindings`, `sylon/conversations` and `sylon/jobs` implement [Sylon conversations and code proposals](../docs/implementation/sylon-contract.md). Context and outputs require current grants; code application is explicit, revision-checked and never executes. The obsolete `POST .../sylon/messages` route remains unavailable.
 
-Every notebook mutation validates IDs, document kind, unique cell IDs and allowed languages. SQL documents contain SQL cells only. Cell sources are capped at 256 KiB, documents at 200 cells, requests at 1 MiB. Unknown JSON fields and multiple JSON values are rejected; user outputs are not stored in shared notebook documents. Document revisions are atomic and retained until document deletion. A saved Python batch run retains its own independent source snapshot after later edits/deletion. It compiles cells separately with stable traceback filenames and shared globals in one fresh batch process, capped at 256 KiB of generated source. Interactive kernels and rich result delivery are not implemented yet.
+Every notebook mutation validates IDs, document kind, unique cell IDs and allowed languages. SQL documents contain SQL cells only. Cell sources are capped at 256 KiB, documents at 200 cells, requests at 1 MiB. Unknown JSON fields and multiple JSON values are rejected; user outputs are not stored in shared notebook documents. Document revisions are atomic and retained until document deletion. A saved Python batch run retains its own independent source snapshot after later edits/deletion. It compiles cells separately with stable traceback filenames and shared globals in one fresh batch process, capped at 256 KiB of generated source. Interactive kernels and rich Spark display output are not implemented yet; Trino queries have their own owner-scoped typed result service.
 
 The planner supports the initial `aws` profile, requires explicit optional dependencies, orders them topologically and rejects unknown modules, duplicates, modes and cycles. External HTTPS API/management endpoint syntax may be supplied; absence is a warning requiring later coordinates and secret references. It does not probe networks or perform an installation. PostgreSQL and identity are implicit core dependencies. Managed versus external is planned ownership, not existing-service detection.
 
@@ -89,7 +97,7 @@ Tests cover real HTTP handlers, persisted memory documents, unknown fields and b
 
 To exercise PostgreSQL against an isolated test database, set `DATASLATE_TEST_DATABASE_URL` and run the same tests. The test migrates the database, creates unique test resources, opens a second connection to verify persistence, races revision updates and removes its test resources. Only that test constructor permits unverified TLS for an isolated CI PostgreSQL service. Without the variable, the integration test is explicitly skipped.
 
-API and workspace OCI image builds passed in the [November publication CI](../docs/implementation/validation.md). Deployed container startup remains unqualified. Other pending live gates include PostgreSQL/cloud CA setup, full external IdP login, EKS/S3 workload identity, Kubernetes server-side dry runs, Spark execution, UC/Ranger enforcement, external module installations, upgrades, restores and resource budgets. Production release depends on those gates.
+API and workspace OCI image builds passed in the [November publication CI](../docs/implementation/validation.md). A later local checkpoint verified API/controller/web container startup and real Spark execution. Current local Trino and Polaris qualification is recorded in their deployment profiles; separate API/PostgreSQL tests exercise real backends. These are bounded checks, not a complete production installation. Remaining live gates include cloud CA/identity, full browser IdP login, EKS/S3, native lake query interoperability, UC/Ranger enforcement, upgrades, restores, capacity and resource budgets.
 
 
 ## Execution controller

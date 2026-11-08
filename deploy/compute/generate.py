@@ -88,6 +88,7 @@ def render(config):
     validations=[
       ("variables.role in ['driver','executor']","Only Spark driver/executor Pods are admitted."),
       ("request.operation != 'UPDATE' || (has(oldObject.metadata.labels) && 'spark-role' in oldObject.metadata.labels && oldObject.metadata.labels['spark-role'] == variables.role)","A Pod's Spark role cannot be changed after creation."),
+      ("request.operation != 'UPDATE' || !has(oldObject.metadata.labels) || !('dataslate.io/run' in oldObject.metadata.labels) || (has(object.metadata.labels) && 'dataslate.io/run' in object.metadata.labels && object.metadata.labels['dataslate.io/run'] == oldObject.metadata.labels['dataslate.io/run'])","A DataSlate Pod's run identity cannot be changed or removed."),
       ("has(object.spec.serviceAccountName) && object.spec.serviceAccountName == "+json.dumps(sa),"The approved workload service account is required."),
       ("request.operation != 'CREATE' || request.userInfo.username == "+json.dumps(operator)+" || (request.userInfo.username == "+json.dumps(driver)+" && variables.role == 'executor')","Only the operator may create drivers; the approved driver may create executors."),
       ("variables.containers.all(c, c.image in "+json.dumps(c["images"])+")","All containers must use a configured immutable image digest."),

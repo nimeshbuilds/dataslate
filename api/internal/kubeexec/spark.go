@@ -35,8 +35,12 @@ func (c *Client) ValidateBindings(bindings []platform.ExecutionBinding) error {
 			subject = b.AllowedSubjects[0]
 		}
 		r := platform.Run{Resource: platform.Resource{ID: "run-00000000000000000000000000000000"}, WorkspaceID: b.WorkspaceID, BindingID: b.ID, SubmittedBy: subject, Profile: b.ExecutionProfile, KubernetesName: "ds-00000000000000000000000000000000"}
-		if b.Kind() == platform.NotebookPythonBatch {
-			r.Notebook = &platform.NotebookProvenance{SHA256: strings.Repeat("0", 64)}
+		if b.Kind() == platform.NotebookPythonBatch || b.Kind() == platform.FileIngestionBatch {
+			if b.Kind() == platform.NotebookPythonBatch {
+				r.Notebook = &platform.NotebookProvenance{SHA256: strings.Repeat("0", 64)}
+			} else {
+				r.Ingestion = &platform.IngestionProvenance{SHA256: strings.Repeat("0", 64)}
+			}
 			r.SourceArtifact = &platform.SourceArtifact{Name: r.KubernetesName + "-source", State: "pending"}
 		}
 		if _, err := c.manifest(r); err != nil {
@@ -105,8 +109,8 @@ func (c *Client) manifest(r platform.Run) (application, error) {
 	conf["spark.kubernetes.driver.podTemplateContainerName"] = "spark-kubernetes-driver"
 	conf["spark.kubernetes.executor.podTemplateContainerName"] = "executor"
 	spec["driverSpec"] = restrictedTemplate("spark-kubernetes-driver", true)
-	if r.Profile.Kind() == platform.NotebookPythonBatch {
-		if r.Notebook == nil || r.SourceArtifact == nil || r.SourceArtifact.Name != r.KubernetesName+"-source" || len(r.Notebook.SHA256) != 64 {
+	if r.Profile.Kind() == platform.NotebookPythonBatch || r.Profile.Kind() == platform.FileIngestionBatch {
+		if r.SourceArtifact == nil || r.SourceArtifact.Name != r.KubernetesName+"-source" || len(r.SourceSHA256()) != 64 {
 			return application{}, errors.New("notebook source provenance is missing")
 		}
 		spec["mainClass"] = "org.apache.spark.deploy.PythonRunner"
@@ -115,6 +119,13 @@ func (c *Client) manifest(r platform.Run) (application, error) {
 		driver["containers"].([]any)[0].(map[string]any)["volumeMounts"] = []any{map[string]any{"name": "dataslate-source", "mountPath": "/opt/dataslate/source", "readOnly": true}}
 	}
 	spec["executorSpec"] = restrictedTemplate("executor", false)
+	if r.Profile.Kind() == platform.FileIngestionBatch {
+		conf["spark.kubernetes.driver.label.dataslate.io/run"] = r.ID
+		conf["spark.kubernetes.executor.label.dataslate.io/run"] = r.ID
+		for _, role := range []string{"driverSpec", "executorSpec"} {
+			spec[role].(map[string]any)["podTemplateSpec"].(map[string]any)["metadata"] = map[string]any{"labels": map[string]string{"dataslate.io/run": r.ID}}
+		}
+	}
 	spec["deploymentMode"] = "ClusterMode"
 	spec["applicationTolerations"] = map[string]any{"resourceRetainPolicy": "OnFailure", "resourceRetainDurationMillis": 3600000, "ttlAfterStopMillis": 86400000, "restartConfig": map[string]any{"restartPolicy": "Never", "maxRestartAttempts": 0, "restartCounterResetMillis": -1}}
 	// JSON normalization is required because API decoding uses float64 numbers/maps.
@@ -272,7 +283,7 @@ func (c *Client) submit(ctx context.Context, r platform.Run, authorize func(cont
 			return platform.BackendObservation{}, errors.New("execution authorization was revoked before submission")
 		}
 	}
-	if r.Profile.Kind() == platform.NotebookPythonBatch {
+	if r.Profile.Kind() == platform.NotebookPythonBatch || r.Profile.Kind() == platform.FileIngestionBatch {
 		if r.SourceArtifact == nil || r.SourceArtifact.State != "ready" || r.SourceArtifact.UID == "" {
 			return platform.BackendObservation{}, errors.New("notebook source was not durably prepared")
 		}

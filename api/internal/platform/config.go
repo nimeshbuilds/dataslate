@@ -9,6 +9,14 @@ import (
 )
 
 type Config struct {
+	SylonBindingsFile                                       string
+	SylonBindings                                           []SylonBinding
+	SearchBindingsFile                                      string
+	SearchBindings                                          []SearchBinding
+	CatalogBindingsFile                                     string
+	CatalogBindings                                         []CatalogBinding
+	SQLBindingsFile                                         string
+	SQLBindings                                             []SQLBinding
 	Addr, AuthMode, DatabaseURL, Issuer, Audience, ClientID string
 	Scopes                                                  []string
 	ExecutionBindingsFile                                   string
@@ -16,7 +24,7 @@ type Config struct {
 }
 
 func LoadConfig() (Config, error) {
-	c := Config{Addr: os.Getenv("DATASLATE_ADDR"), AuthMode: os.Getenv("DATASLATE_AUTH_MODE"), DatabaseURL: os.Getenv("DATASLATE_DATABASE_URL"), Issuer: os.Getenv("DATASLATE_OIDC_ISSUER"), Audience: os.Getenv("DATASLATE_OIDC_AUDIENCE"), ClientID: os.Getenv("DATASLATE_OIDC_CLIENT_ID"), Scopes: strings.Fields(os.Getenv("DATASLATE_OIDC_SCOPES")), ExecutionBindingsFile: os.Getenv("DATASLATE_EXECUTION_BINDINGS_FILE")}
+	c := Config{SylonBindingsFile: os.Getenv("DATASLATE_SYLON_BINDINGS_FILE"), SearchBindingsFile: os.Getenv("DATASLATE_SEARCH_BINDINGS_FILE"), CatalogBindingsFile: os.Getenv("DATASLATE_CATALOG_BINDINGS_FILE"), SQLBindingsFile: os.Getenv("DATASLATE_SQL_BINDINGS_FILE"), Addr: os.Getenv("DATASLATE_ADDR"), AuthMode: os.Getenv("DATASLATE_AUTH_MODE"), DatabaseURL: os.Getenv("DATASLATE_DATABASE_URL"), Issuer: os.Getenv("DATASLATE_OIDC_ISSUER"), Audience: os.Getenv("DATASLATE_OIDC_AUDIENCE"), ClientID: os.Getenv("DATASLATE_OIDC_CLIENT_ID"), Scopes: strings.Fields(os.Getenv("DATASLATE_OIDC_SCOPES")), ExecutionBindingsFile: os.Getenv("DATASLATE_EXECUTION_BINDINGS_FILE")}
 	if c.Addr == "" {
 		c.Addr = "127.0.0.1:8080"
 	}
@@ -45,6 +53,47 @@ func LoadConfig() (Config, error) {
 		}
 	}
 	c.ExecutionBindings = bindings
+	sqlBindings, err := LoadSQLBindings(c.SQLBindingsFile)
+	if err != nil {
+		return c, err
+	}
+	for _, binding := range sqlBindings {
+		for _, subject := range binding.AllowedSubjects {
+			if subject.Issuer != issuer {
+				return c, errors.New("SQL subject issuer must match authentication issuer")
+			}
+		}
+	}
+	c.SQLBindings = sqlBindings
+	catalogBindings, err := LoadCatalogBindings(c.CatalogBindingsFile)
+	if err != nil {
+		return c, err
+	}
+	for _, binding := range catalogBindings {
+		for _, subject := range binding.AllowedSubjects {
+			if subject.Issuer != issuer {
+				return c, errors.New("catalog subject issuer must match authentication issuer")
+			}
+		}
+	}
+	c.CatalogBindings = catalogBindings
+	searchBindings, err := LoadSearchBindings(c.SearchBindingsFile)
+	if err != nil {
+		return c, err
+	}
+	c.SearchBindings = searchBindings
+	sylonBindings, err := LoadSylonBindings(c.SylonBindingsFile)
+	if err != nil {
+		return c, err
+	}
+	for _, binding := range sylonBindings {
+		for _, subject := range binding.AllowedSubjects {
+			if subject.Issuer != issuer {
+				return c, errors.New("Sylon subject issuer must match authentication issuer")
+			}
+		}
+	}
+	c.SylonBindings = sylonBindings
 	return c, nil
 }
 func (c Config) Validate() error {

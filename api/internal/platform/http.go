@@ -15,13 +15,21 @@ import (
 )
 
 type Server struct {
-	Config  Config
-	Store   Store
-	Auth    Authenticator
-	Backend ExecutionBackend
+	SearchEmbedder SearchEmbedder
+	CatalogBackend CatalogBackend
+	Config         Config
+	Store          Store
+	Auth           Authenticator
+	Backend        ExecutionBackend
 }
 
 func (s *Server) Handler() http.Handler {
+	if s.SearchEmbedder == nil {
+		s.SearchEmbedder = &GatewaySearchEmbedder{}
+	}
+	if s.CatalogBackend == nil {
+		s.CatalogBackend = &PolarisCatalogBackend{}
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +53,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 200, map[string]any{"product": "DataSlate", "assistant": "Sylon", "phase": "foundation", "authMode": s.Config.AuthMode, "persistence": s.Store.Mode(), "executionEnabled": len(s.Config.ExecutionBindings) > 0, "notebookExecutionEnabled": notebookExecutionEnabled(s.Config), "executionMode": executionMode(s.Config)})
+		writeJSON(w, 200, map[string]any{"product": "DataSlate", "assistant": "Sylon", "phase": "foundation", "authMode": s.Config.AuthMode, "persistence": s.Store.Mode(), "executionEnabled": len(s.Config.ExecutionBindings) > 0, "notebookExecutionEnabled": notebookExecutionEnabled(s.Config), "ingestionExecutionEnabled": ingestionExecutionEnabled(s.Config), "sqlExecutionEnabled": len(s.Config.SQLBindings) > 0, "executionMode": executionMode(s.Config)})
 	})
 	api.HandleFunc("GET /api/v1/modules", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"items": Modules()}) })
 	api.HandleFunc("POST /api/v1/deployment-plans", func(w http.ResponseWriter, r *http.Request) {
@@ -68,6 +76,11 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("PUT /api/v1/workspaces/{workspaceId}/notebooks/{id}", s.saveNotebook)
 	api.HandleFunc("DELETE /api/v1/workspaces/{workspaceId}/notebooks/{id}", s.deleteNotebook)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/notebooks/{id}/revisions", s.revisions)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/ingestion-pipelines", s.listIngestionPipelines)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/ingestion-pipelines", s.saveIngestionPipeline)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/ingestion-pipelines/{id}", s.getIngestionPipeline)
+	api.HandleFunc("PUT /api/v1/workspaces/{workspaceId}/ingestion-pipelines/{id}", s.saveIngestionPipeline)
+	api.HandleFunc("DELETE /api/v1/workspaces/{workspaceId}/ingestion-pipelines/{id}", s.deleteIngestionPipeline)
 	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/spark-applications/preview", s.sparkPreview)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/execution-bindings", s.executionBindings)
 	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/runs", s.createRun)
@@ -77,6 +90,32 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/events", s.runEvents)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/logs", s.runLogs)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/source", s.runSource)
+
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/search/status", s.searchStatus)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/search", s.search)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/search/index", s.createSearchIndex)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/search/index-jobs/{id}", s.searchIndexJob)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/catalog-bindings", s.catalogBindings)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/catalog-bindings/{id}/verify", s.verifyCatalog)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/catalog-bindings/{id}/namespaces", s.catalogNamespaces)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/catalog-bindings/{id}/tables", s.catalogTables)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/catalog-bindings/{id}/table", s.catalogTable)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/sql-bindings", s.sqlBindings)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/queries", s.listQueries)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/queries", s.createQuery)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/queries/{id}", s.getQuery)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/queries/{id}/cancel", s.cancelQuery)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/queries/{id}/source", s.querySource)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/queries/{id}/result", s.queryResult)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/sylon/bindings", s.sylonBindings)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/sylon/conversations", s.listSylonConversations)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/sylon/conversations", s.createSylonConversation)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/sylon/conversations/{id}", s.getSylonConversation)
+	api.HandleFunc("DELETE /api/v1/workspaces/{workspaceId}/sylon/conversations/{id}", s.deleteSylonConversation)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/sylon/conversations/{id}/messages", s.createSylonMessage)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/sylon/jobs/{id}", s.getSylonJob)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/sylon/jobs/{id}/cancel", s.cancelSylonJob)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/sylon/jobs/{id}/apply", s.applySylonCode)
 	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/sylon/messages", s.unavailable)
 	api.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "not_found", "API route is not implemented.")

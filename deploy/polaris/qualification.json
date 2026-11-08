@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-07",
+  "scope": "owned local Kubernetes, not cloud qualification",
+  "cluster": "k3s v1.35.0+k3s1 linux/arm64",
+  "polaris": "1.8.0",
+  "productionProfile": {
+    "jdbcBootstrapCompleted": true,
+    "podReady": true,
+    "upstreamReadinessBypass": false,
+    "tlsCertificateVerified": true,
+    "missingRealmRejectedHTTP": 404
+  },
+  "nativeIcebergFixture": {
+    "storage": "FILE (explicit local-only insecure-storage/readiness overrides)",
+    "formatVersion": 2,
+    "multipartNamespace": true,
+    "realTableSchemaFields": 2,
+    "productionClientDiscoveryListLoadPassed": true,
+    "unauthenticatedRequestsDenied": 2,
+    "credentialVendingRequested": false
+  },
+  "networkPolicy": {
+    "unauthorizedPodTCPDenied": true,
+    "matchingClientLabelTCPAllowed": true,
+    "labelRemovedTCPDeniedAgain": true
+  },
+  "automated": {
+    "goRaceTopLevelTests": 12,
+    "pythonProfileTests": 4,
+    "pinnedHelmChartRendered": true
+  },
+  "notQualified": [
+    "AWS EKS/S3 or other cloud storage",
+    "OIDC deployment mapping or delegated identity",
+    "row/column query policies",
+    "query engine interoperability",
+    "HA, load, backup/restore, upgrade"
+  ]
+}

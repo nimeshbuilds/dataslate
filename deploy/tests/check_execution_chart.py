@@ -29,8 +29,9 @@ def check_execution_chart(run, external_args):
             assert role['metadata']['namespace'] == 'dataslate-compute'
             spark = role['rules'][0]
             if role['metadata']['name'].endswith('-controller'):
-                assert len(role['rules']) == 2
+                assert len(role['rules']) == 3
                 assert role['rules'][1] == {'apiGroups': [''], 'resources': ['configmaps'], 'verbs': ['get', 'create', 'patch', 'delete']}
+                assert role['rules'][2] == {'apiGroups': [''], 'resources': ['pods'], 'verbs': ['get', 'list']}
             else:
                 _, pods, logs = role['rules']
                 assert pods == {'apiGroups': [''], 'resources': ['pods'], 'verbs': ['get', 'list']}
@@ -91,6 +92,27 @@ def check_execution_chart(run, external_args):
         path.write_text(json.dumps(notebook)); run(args)
         run([*args, '--set', 'execution.bindings[0].mainApplicationFile=local:///opt/override.py'], 'mainApplicationFile')
         run([*args, '--set', 'execution.bindings[0].executionKind=interactive-python'], 'executionKind')
+        ingestion = copy.deepcopy(notebook)
+        ingestion_binding = ingestion['execution']['bindings'][0]
+        ingestion_binding.update(executionKind='file-ingestion-batch', ingestionStorage={
+            'readPrefixes': ['s3://example-lake/incoming/'],
+            'writePrefixes': ['s3://example-lake/managed/', 's3://example-lake/checkpoints/'],
+        })
+        path.write_text(json.dumps(ingestion)); run(args)
+        ingestion_negatives = [
+            (['--set-json', 'execution.bindings[0].ingestionStorage=null'], 'ingestionStorage'),
+            (['--set-json', 'execution.bindings[0].ingestionStorage.readPrefixes=[]'], 'readPrefixes'),
+            (['--set-json', 'execution.bindings[0].ingestionStorage.writePrefixes=[]'], 'writePrefixes'),
+            (['--set', 'execution.bindings[0].ingestionStorage.readPrefixes[0]=https://example.com/source/'], 'readPrefixes'),
+            (['--set', 'execution.bindings[0].ingestionStorage.readPrefixes[0]=s3://example-lake/incoming/../other/'], 'readPrefixes'),
+            (['--set', 'execution.bindings[0].ingestionStorage.writePrefixes[0]=s3://example-lake/data'], 'writePrefixes'),
+            (['--set', 'execution.bindings[0].executionKind=notebook-python-batch'], "'not' failed"),
+            (['--set', 'execution.bindings[0].ingestionStorage.readPrefixes[0]=s3://example-lake/'], 'readPrefixes'),
+            (['--set', 'execution.bindings[0].ingestionStorage.readPrefixes[0]=s3://127.0.0.1/data/'], 'readPrefixes'),
+            (['--set', 'execution.bindings[0].ingestionStorage.readPrefixes[0]=s3://example..lake/data/'], 'readPrefixes'),
+        ]
+        for flags, expected in ingestion_negatives:
+            run([*args, *flags], expected)
         # A second namespace must receive its own roles without broadening existing roles.
         second = copy.deepcopy(binding); second.update(id='another', namespace='analytics-compute')
         duplicate['execution']['bindings'][1] = second; duplicate['execution']['namespaces'].append('analytics-compute'); path.write_text(json.dumps(duplicate))
@@ -102,4 +124,4 @@ def check_execution_chart(run, external_args):
             drain = [d for d in yaml.safe_load_all(run([*args, *flags])) if d]
             assert len([d for d in drain if d['kind'] == 'Role']) == 4
             assert any(d['kind'] == 'Deployment' and d['metadata']['name'] == 'dataslate-controller' for d in drain)
-    print('PASS execution opt-in: namespaced RBAC, pinned bindings, controller isolation and 17 unsafe configurations rejected')
+    print('PASS execution opt-in: namespaced RBAC, pinned bindings, controller isolation and 27 unsafe configurations rejected')

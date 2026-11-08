@@ -1,0 +1,38 @@
+# Overlay on eks-external.yaml. Replace all illustrative identity, endpoint,
+# subnet, and Secret references. Polaris itself is deployed separately.
+networkPolicy:
+  # Scope the existing API IdP allowance too; broad egress would defeat the
+  # catalog policy because Kubernetes NetworkPolicy allowances are additive.
+  httpsEgressCidrs: [10.40.0.12/32]
+catalog:
+  enabled: true
+  credentials:
+    - id: catalog-reader
+      caSecret: {name: dataslate-polaris-ca, key: ca.crt}
+      oauth:
+        clientId: replace-with-polaris-service-client
+        clientSecret: {name: dataslate-polaris-client, key: client-secret}
+        tokenEndpoint: https://polaris.example.com:8181/api/catalog/v1/oauth/tokens
+        scope: PRINCIPAL_ROLE:ALL
+        style: post
+      # For an externally minted bearer token, replace oauth with:
+      # bearerTokenSecret: {name: dataslate-polaris-token, key: token}
+  egress:
+    - {cidr: 10.50.0.12/32, port: 8181}
+    # Add a separate exact destination when OAuth is on another host/port.
+  bindings:
+    - id: lake-catalog
+      workspaceId: default
+      name: Company lake
+      kind: polaris
+      policyVersion: v1
+      connection:
+        endpoint: https://polaris.example.com:8181/api/catalog
+        warehouse: lakehouse
+        realm: dataslate
+        credentialsId: catalog-reader
+      allowedSubjects:
+        - issuer: https://identity.example.com/realms/dataslate
+          subject: replace-with-verified-oidc-subject
+          tables:
+            - {namespace: [analytics], name: orders}

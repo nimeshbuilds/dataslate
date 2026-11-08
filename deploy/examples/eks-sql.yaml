@@ -1,0 +1,34 @@
+# Overlay on eks-external.yaml (and optionally eks-managed-postgres.yaml).
+# Replace all illustrative identities, endpoint, CIDR and image before deployment.
+# Configure Trino's authenticated principal impersonation + read-only table/row/
+# column policies first. DataSlate's policy flag is operator acknowledgment,
+# not SQL parsing or an upstream authorization policy installation.
+sql:
+  enabled: true
+  controller:
+    image:
+      repository: registry.example.com/dataslate/sql-controller
+  credentials:
+    # Keep this entry, its Secret and the engine egress rule until old queries
+    # have drained, even after removing the binding or revoking its subjects.
+    - id: analytics
+      tokenSecret: {name: dataslate-trino-client, key: token}
+      caSecret: {name: dataslate-trino-ca, key: ca.crt}
+  engineEgress:
+    - {cidr: 10.30.0.12/32, port: 8443}
+  bindings:
+    - id: analytics
+      workspaceId: default
+      name: Governed lakehouse SQL
+      engine: trino
+      endpoint: https://trino.example.com:8443
+      credentialsId: analytics
+      catalog: lakehouse
+      schema: analytics
+      policyVersion: v1
+      maxRunSeconds: 300
+      readOnlyPolicyAccepted: true
+      allowedSubjects:
+        - issuer: https://identity.example.com/realms/dataslate
+          subject: replace-with-verified-oidc-subject
+          engineUser: replace-with-distinct-trino-user

@@ -15,6 +15,12 @@ func (s *PostgresStore) CreateRun(ctx context.Context, r Run, key, fingerprint s
 		return Run{}, false, err
 	}
 	defer tx.Rollback(ctx)
+	// Serialize permanent location reservations across all workspaces before their row locks.
+	if r.Profile.Kind() == FileIngestionBatch {
+		if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(72610524002)`); err != nil {
+			return Run{}, false, err
+		}
+	}
 	// Serializing on the workspace row makes capacity enforcement atomic across API replicas and owners.
 	var ws string
 	if err = tx.QueryRow(ctx, `SELECT id FROM dataslate_workspaces WHERE id=$1 FOR UPDATE`, r.WorkspaceID).Scan(&ws); err != nil {
@@ -33,7 +39,7 @@ func (s *PostgresStore) CreateRun(ctx context.Context, r Run, key, fingerprint s
 		return Run{}, false, err
 	}
 	var active int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM dataslate_runs WHERE workspace_id=$1 AND (state NOT IN ('succeeded','failed','cancelled') OR document->'sourceArtifact'->>'state' IN ('pending','ready','cleanup_pending'))`, ws).Scan(&active); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM dataslate_runs WHERE workspace_id=$1 AND (state NOT IN ('succeeded','failed','cancelled') OR document->'sourceArtifact'->>'state' IN ('pending','ready','cleanup_pending') OR (document ? 'ingestion' AND COALESCE((document->>'writerReleased')::boolean,false)=false))`, ws).Scan(&active); err != nil {
 		return Run{}, false, err
 	}
 	if active >= MaxActiveWorkspaceRuns {
@@ -53,6 +59,13 @@ func (s *PostgresStore) CreateRun(ctx context.Context, r Run, key, fingerprint s
 		if err != nil {
 			return Run{}, false, err
 		}
+	} else if r.Profile.Kind() == FileIngestionBatch {
+		r, err = snapshotIngestionTransaction(ctx, tx, r)
+		if err != nil {
+			return Run{}, false, err
+		}
+	} else if r.Ingestion != nil {
+		return Run{}, false, ErrIngestionNotExecutable
 	} else if r.Notebook != nil {
 		return Run{}, false, ErrNotebookNotExecutable
 	}
@@ -124,7 +137,7 @@ func (s *PostgresStore) AcquireRun(ctx context.Context, owner string, ttl time.D
 	var r Run
 	lease := RunLease{Owner: owner}
 	var source *RunSource
-	err := s.pool.QueryRow(ctx, `WITH candidate AS (SELECT id FROM dataslate_runs WHERE (state NOT IN ('succeeded','failed','cancelled') OR document->'sourceArtifact'->>'state' IN ('pending','ready','cleanup_pending')) AND next_reconcile_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<=clock_timestamp()) ORDER BY next_reconcile_at,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE dataslate_runs r SET lease_owner=$1,lease_fence=r.lease_fence+1,lease_until=clock_timestamp()+($2 * interval '1 millisecond') FROM candidate WHERE r.id=candidate.id RETURNING r.id,r.document,r.lease_fence,(SELECT document FROM dataslate_run_sources WHERE run_id=r.id)`, owner, ttl.Milliseconds()).Scan(&lease.RunID, &r, &lease.Fence, &source)
+	err := s.pool.QueryRow(ctx, `WITH candidate AS (SELECT id FROM dataslate_runs WHERE (state NOT IN ('succeeded','failed','cancelled') OR document->'sourceArtifact'->>'state' IN ('pending','ready','cleanup_pending') OR (document ? 'ingestion' AND COALESCE((document->>'writerReleased')::boolean,false)=false)) AND next_reconcile_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<=clock_timestamp()) ORDER BY next_reconcile_at,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE dataslate_runs r SET lease_owner=$1,lease_fence=r.lease_fence+1,lease_until=clock_timestamp()+($2 * interval '1 millisecond') FROM candidate WHERE r.id=candidate.id RETURNING r.id,r.document,r.lease_fence,(SELECT document FROM dataslate_run_sources WHERE run_id=r.id)`, owner, ttl.Milliseconds()).Scan(&lease.RunID, &r, &lease.Fence, &source)
 	r.Source = source
 	return r, lease, storeError(err)
 }

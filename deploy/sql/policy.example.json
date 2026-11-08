@@ -1,0 +1,13 @@
+{
+  "brokerUser": "dataslate-broker",
+  "grants": [
+    {
+      "user": "engineering-reader",
+      "catalog": "lake",
+      "schema": "analytics",
+      "table": "orders",
+      "rowFilter": "region = 'US'",
+      "columns": [{"name": "customer_email", "mask": "CAST(NULL AS VARCHAR)"}]
+    }
+  ]
+}

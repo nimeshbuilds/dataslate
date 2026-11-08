@@ -1,0 +1,6 @@
+{
+  "version": "0.8.7",
+  "url": "https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.7.tar.gz",
+  "sha256": "cac0b10c360f05b2d521200105ba3697e773d4cd3731f5a915a7e37ebe0bea85",
+  "qualificationImage": "pgvector/pgvector:0.8.7-pg17@sha256:7d0a41464797aeb9862dfdc0bbf1526b82cfd324cdd8036df19e3545f4a9ccb8"
+}

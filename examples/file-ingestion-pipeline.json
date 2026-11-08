@@ -1,0 +1,15 @@
+{
+  "name": "Orders from immutable JSON files",
+  "source": {
+    "format": "json",
+    "uri": "s3://example-lake/incoming/orders/",
+    "schema": [
+      {"name": "order_id", "type": "long", "nullable": false},
+      {"name": "amount", "type": "double", "nullable": false},
+      {"name": "region", "type": "string", "nullable": true}
+    ]
+  },
+  "destination": {"uri": "s3://example-lake/managed/orders/"},
+  "checkpointUri": "s3://example-lake/checkpoints/orders/",
+  "maxFilesPerTrigger": 100
+}

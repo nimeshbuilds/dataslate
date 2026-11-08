@@ -1,0 +1,32 @@
+[
+  {
+    "name": "delta-spark_4.1_2.13-4.3.1.jar",
+    "url": "https://repo.maven.apache.org/maven2/io/delta/delta-spark_4.1_2.13/4.3.1/delta-spark_4.1_2.13-4.3.1.jar",
+    "sha256": "ebf35a4383f0a653c3ee3c7882c0edcac2f846be31ac61af4b96ccfaaf36c171"
+  },
+  {
+    "name": "delta-storage-4.3.1.jar",
+    "url": "https://repo.maven.apache.org/maven2/io/delta/delta-storage/4.3.1/delta-storage-4.3.1.jar",
+    "sha256": "577c12c7e371be4c041714fb48e88ad86e3c3512beea2bdaffbe7a4debf79718"
+  },
+  {
+    "name": "hadoop-aws-3.4.2.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/apache/hadoop/hadoop-aws/3.4.2/hadoop-aws-3.4.2.jar",
+    "sha256": "d2d24e6b715b5656b9d238bf13b6682a07e2004dd36aad74a73aeb854319f4d9"
+  },
+  {
+    "name": "bundle-2.29.52.jar",
+    "url": "https://repo.maven.apache.org/maven2/software/amazon/awssdk/bundle/2.29.52/bundle-2.29.52.jar",
+    "sha256": "62638f33045690c6bc5e496b54b0b2e89a9ad38cbedacdf6e017fea6bc85f55c"
+  },
+  {
+    "name": "analyticsaccelerator-s3-1.2.1.jar",
+    "url": "https://repo.maven.apache.org/maven2/software/amazon/s3/analyticsaccelerator/analyticsaccelerator-s3/1.2.1/analyticsaccelerator-s3-1.2.1.jar",
+    "sha256": "11029552e37408e41e689b20150f4b372e0b4f232de321ccafd0fcf443cdfb5a"
+  },
+  {
+    "name": "wildfly-openssl-2.1.4.Final.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/wildfly/openssl/wildfly-openssl/2.1.4.Final/wildfly-openssl-2.1.4.Final.jar",
+    "sha256": "95decbc5d088b40e85f58d7726b8c8f4e3be6312a0f2660c2d714a23cee80279"
+  }
+]

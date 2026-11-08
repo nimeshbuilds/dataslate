@@ -27,8 +27,9 @@ type NotebookProvenance struct {
 	Bytes   int      `json:"bytes"`
 }
 type RunSource struct {
-	Source   string             `json:"source"`
-	Notebook NotebookProvenance `json:"notebook"`
+	Source    string               `json:"source"`
+	Notebook  NotebookProvenance   `json:"notebook,omitzero"`
+	Ingestion *IngestionProvenance `json:"ingestion,omitempty"`
 }
 type SourceArtifact struct {
 	CreationStarted bool   `json:"creationStarted"`
@@ -64,7 +65,7 @@ func validArtifactTransition(from, to string) bool {
 	return false
 }
 func (r Run) NeedsReconciliation() bool {
-	return !r.Terminal() || r.SourceArtifact != nil && r.SourceArtifact.State != "deleted"
+	return !r.Terminal() || r.Ingestion != nil && !r.WriterReleased || r.SourceArtifact != nil && r.SourceArtifact.State != "deleted"
 }
 func snapshotNotebook(r Run, n Notebook) (Run, error) {
 	if r.Profile.Kind() != NotebookPythonBatch || r.Notebook == nil || n.WorkspaceID != r.WorkspaceID || n.ID != r.Notebook.ID {
@@ -111,6 +112,9 @@ func snapshotNotebook(r Run, n Notebook) (Run, error) {
 
 // ValidateSource checks independently persisted bytes against the immutable public provenance.
 func (r Run) ValidateSource() error {
+	if r.Profile.Kind() == FileIngestionBatch {
+		return r.validateIngestionSource()
+	}
 	if r.Profile.Kind() != NotebookPythonBatch || r.Notebook == nil || r.Source == nil || r.SourceArtifact == nil || r.SourceArtifact.Name != r.KubernetesName+"-source" {
 		return ErrNotebookNotExecutable
 	}

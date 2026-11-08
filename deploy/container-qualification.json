@@ -1,0 +1,157 @@
+{
+  "qualifiedAtUTC": "2026-11-08T03:50:17.275312+00:00",
+  "status": "passed",
+  "scope": "Immutable production image builds and isolated local OCI startup qualification; not a complete Kubernetes deployment",
+  "platform": "linux/arm64",
+  "runtime": "containerd/nerdctl in an explicitly owned Colima VM",
+  "sourceContextSHA256": {
+    "api": "9dfdd8ed8f307a7f55b89ca39551844f4cb8621f7af5a707f4b38938438e73e7",
+    "web": "4f8e5bf9497458e68775157482e8a656c6e60e190062fe257fb4959394c39fce"
+  },
+  "builds": [
+    {
+      "image": "api",
+      "dockerfile": "api/Dockerfile",
+      "dockerfileSHA256": "baf098cb47da646aaf5ca6cf4346b1a64767ffe7b40b347b58f184ab0115d839",
+      "passed": true,
+      "manifestDigest": "sha256:a599f7750eb734e8608073e3767c465fd504b790ad3a914a61c27a02af8a47ae",
+      "configDigest": "sha256:a358d450142d79cf4a7b43425ff42eaa12f1ed0a19144680efc897fcf96e4eee"
+    },
+    {
+      "image": "execution",
+      "dockerfile": "api/ControllerDockerfile",
+      "dockerfileSHA256": "a8fc585cd34c22a1a821b55c696ebff4fcd13a24140e70c632fa73f0264f656a",
+      "passed": true,
+      "manifestDigest": "sha256:5607184c87b9dee593272ece4df310350828b4ed078f6c44d069ac94015598d8",
+      "configDigest": "sha256:1d60b2e7497a0dda95d7b4f28024f136ff13e6fb02c6995a7f3634db4ad506a2"
+    },
+    {
+      "image": "sql",
+      "dockerfile": "api/SQLControllerDockerfile",
+      "dockerfileSHA256": "9dfb22366e003d95817fb92aab9e2b40a02a5b1657dd46e1573e7ba1d86d52e8",
+      "passed": true,
+      "manifestDigest": "sha256:38f29b3223eafa8ac908827a3a4233f4b258f713cb8eeabae03d1415ef97353e",
+      "configDigest": "sha256:4cff479773917b6c6a70fff8ea2a28809cedab11ac01dbaa0a5d2438583a3870"
+    },
+    {
+      "image": "search",
+      "dockerfile": "api/SearchControllerDockerfile",
+      "dockerfileSHA256": "d92ecbf389e2051c98b5696497d663072499c5487e0dc68a67393b331e57c0e0",
+      "passed": true,
+      "manifestDigest": "sha256:ab76f09e815269abdbb86b8cb3cfcfb1a5bc1d96276b9d60607a284990fb511b",
+      "configDigest": "sha256:5be9515a2c149311b41c3f764e71bb27b8aeae1efb972aa2b1a98cf60a82ecc3"
+    },
+    {
+      "image": "sylon",
+      "dockerfile": "api/SylonControllerDockerfile",
+      "dockerfileSHA256": "bbd56536a02a6c3c49d1edb04ca6f7545a8ef73a676ca76e20b10c9697ccd662",
+      "passed": true,
+      "manifestDigest": "sha256:e68e74bbfc0dfd1b248f7c6eb9a96f5acf9566954c866b2b888128defcd22f5d",
+      "configDigest": "sha256:b6b8e15d0e788d5adcc1a7b4e2d3df216778598cb7d9bc4a87ad8a157989bd1f"
+    },
+    {
+      "image": "web",
+      "manifestDigest": "sha256:ee555fdce3d29da21e618dc76d4834935d1eb0d494d2ccf7babe37b97324291d",
+      "configDigest": "sha256:9a1e719c6bd99257143b7acab4d7a42950f3266b9b138d3391328f5c961a50a2",
+      "dockerfile": "web/Dockerfile",
+      "dockerfileSHA256": "9b32702a6d1cc778bf58775e49638d035ad07a12d9cce069b37c358c849e061d",
+      "passed": true
+    }
+  ],
+  "checks": {
+    "images": [
+      {
+        "image": "api",
+        "configDigest": "sha256:a358d450142d79cf4a7b43425ff42eaa12f1ed0a19144680efc897fcf96e4eee",
+        "manifestDigest": "sha256:a599f7750eb734e8608073e3767c465fd504b790ad3a914a61c27a02af8a47ae",
+        "repoDigests": [
+          "dataslate-api@sha256:a599f7750eb734e8608073e3767c465fd504b790ad3a914a61c27a02af8a47ae"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "execution",
+        "configDigest": "sha256:1d60b2e7497a0dda95d7b4f28024f136ff13e6fb02c6995a7f3634db4ad506a2",
+        "manifestDigest": "sha256:5607184c87b9dee593272ece4df310350828b4ed078f6c44d069ac94015598d8",
+        "repoDigests": [
+          "dataslate-execution@sha256:5607184c87b9dee593272ece4df310350828b4ed078f6c44d069ac94015598d8"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "sql",
+        "configDigest": "sha256:4cff479773917b6c6a70fff8ea2a28809cedab11ac01dbaa0a5d2438583a3870",
+        "manifestDigest": "sha256:38f29b3223eafa8ac908827a3a4233f4b258f713cb8eeabae03d1415ef97353e",
+        "repoDigests": [
+          "dataslate-sql@sha256:38f29b3223eafa8ac908827a3a4233f4b258f713cb8eeabae03d1415ef97353e"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "search",
+        "configDigest": "sha256:5be9515a2c149311b41c3f764e71bb27b8aeae1efb972aa2b1a98cf60a82ecc3",
+        "manifestDigest": "sha256:ab76f09e815269abdbb86b8cb3cfcfb1a5bc1d96276b9d60607a284990fb511b",
+        "repoDigests": [
+          "dataslate-search@sha256:ab76f09e815269abdbb86b8cb3cfcfb1a5bc1d96276b9d60607a284990fb511b"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "sylon",
+        "configDigest": "sha256:b6b8e15d0e788d5adcc1a7b4e2d3df216778598cb7d9bc4a87ad8a157989bd1f",
+        "manifestDigest": "sha256:e68e74bbfc0dfd1b248f7c6eb9a96f5acf9566954c866b2b888128defcd22f5d",
+        "repoDigests": [
+          "dataslate-sylon@sha256:e68e74bbfc0dfd1b248f7c6eb9a96f5acf9566954c866b2b888128defcd22f5d"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "web",
+        "configDigest": "sha256:9a1e719c6bd99257143b7acab4d7a42950f3266b9b138d3391328f5c961a50a2",
+        "manifestDigest": "sha256:ee555fdce3d29da21e618dc76d4834935d1eb0d494d2ccf7babe37b97324291d",
+        "repoDigests": [
+          "dataslate-web@sha256:ee555fdce3d29da21e618dc76d4834935d1eb0d494d2ccf7babe37b97324291d"
+        ],
+        "user": "101:101"
+      }
+    ],
+    "nonRootReadOnlyCapDropNoNewPrivileges": true,
+    "apiDevelopmentLoopbackStartup": true,
+    "apiProductionMisconfigurationRejected": true,
+    "apiDevelopmentExposureRejected": true,
+    "webAssetsSPAProxyHeadersAndCallbackLogRedaction": true,
+    "webInvalidUpstreamRejected": true,
+    "controllersVerifiedTLSIdleReconciliationRestartAndGracefulShutdown": [
+      "execution",
+      "sql",
+      "search",
+      "sylon"
+    ],
+    "controllersInsecureDatabaseRejected": true,
+    "sparkDiscoveryProtocolFixture": true,
+    "notTested": [
+      "production OIDC login",
+      "Spark operator execution",
+      "live controller jobs",
+      "cloud data services",
+      "multi-node/HA",
+      "amd64 images"
+    ]
+  },
+  "runner": "scripts/qualify-container-images.py",
+  "runnerSHA256": "43285a9a97ed7a2c82c421fa5e939bb9c12f94bec9c171baed9c38a76dd06bd8",
+  "instructions": "deploy/container-qualification.md",
+  "databaseQualification": "deploy/control-plane-qualification.json",
+  "logs": ".qa/dataslate-final-oci-20261107 (ignored local evidence; no credentials in committed record)",
+  "cleanup": {
+    "completedAtUTC": "2026-11-08T03:51:24.227471+00:00",
+    "ownedProfile": "dataslate-platform-qualification",
+    "ownedVMRemoved": true,
+    "ownedDataDiskRemoved": true,
+    "unrelatedProfilesUnchanged": true,
+    "generatedRuntimeCredentialsRemoved": true,
+    "generatedProbePrivateDirectoryRemoved": true,
+    "onlyProcessLogsInDiagnosticArchive": true,
+    "postgresCleanupOwnedByParentTask": true
+  }
+}

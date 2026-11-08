@@ -104,3 +104,72 @@ execution:
     resources:
       requests: {cpu: 100m, memory: 128Mi}
       limits: {cpu: "1", memory: 512Mi}
+
+# SQL is a separate opt-in controller. The existing Trino service remains externally owned.
+sql:
+  enabled: false
+  # Bindings reference a credentials ID. Secret values never belong in these values.
+  bindings: []
+  # Keep credentials and egress until every accepted query has drained, even after grants are removed.
+  credentials: []
+  # Exact engine destination CIDR/port pairs, separate from API OIDC egress.
+  engineEgress: []
+  controller:
+    replicas: 2
+    image:
+      repository: dataslate-sql-controller
+      tag: 0.1.0-foundation
+      digest: ""
+      pullPolicy: IfNotPresent
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 512Mi}
+
+# Metadata-only Polaris adapter; provider credentials are mounted in the API.
+catalog:
+  enabled: false
+  bindings: []
+  credentials: []
+  # Exact coordinator and OAuth token endpoint destinations, when applicable.
+  egress: []
+
+# Workspace discovery. Lexical mode needs only PostgreSQL; hybrid uses approved HTTPS embeddings.
+search:
+  enabled: false
+  bindings: []
+  credentials: []
+  # Exact embedding gateway/OAuth destinations for API queries and worker indexing.
+  embeddingEgress: []
+  # Exact Polaris/OAuth destinations needed by the worker's selected catalog sources.
+  catalogEgress: []
+  controller:
+    replicas: 2
+    image:
+      repository: dataslate-search-controller
+      tag: 0.1.0-foundation
+      digest: ""
+      pullPolicy: IfNotPresent
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 512Mi}
+
+# Private bounded assistant conversations; provider credentials stay in the worker.
+sylon:
+  enabled: false
+  bindings: []
+  credentials: []
+  # Exact provider and OAuth destination CIDR/ports for the worker only.
+  providerEgress: []
+  # Context retrieval destinations: selected embedding gateways/OAuth and Polaris/OAuth.
+  searchEgress: []
+  catalogEgress: []
+  controller:
+    replicas: 2
+    image:
+      repository: dataslate-sylon-controller
+      tag: 0.1.0-foundation
+      digest: ""
+      pullPolicy: IfNotPresent
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 512Mi}

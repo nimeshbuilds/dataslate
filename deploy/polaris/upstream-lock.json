@@ -1,0 +1,10 @@
+{
+  "chart": "polaris",
+  "chartVersion": "1.8.0",
+  "appVersion": "1.8.0",
+  "url": "https://downloads.apache.org/polaris/helm-chart/1.8.0/polaris-1.8.0.tgz",
+  "sha256": "75cfd96dce07fdd88b7c5d882f73bf952063cea49ce02f346dd2de1e85c65938",
+  "image": "apache/polaris:1.8.0@sha256:347615e736cab2c9be0d8c464552ac930be4755302bb0aeb745216bbae99ba5b",
+  "adminImage": "apache/polaris-admin-tool:1.8.0@sha256:34dde19bb321aef5925a14ba90b69e26e982a5dcbda76a9d0cfc1aac1534ba4e",
+  "sourceTag": "apache-polaris-1.8.0"
+}

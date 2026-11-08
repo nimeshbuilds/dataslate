@@ -55,6 +55,14 @@ func (s *MemoryStore) CreateRun(_ context.Context, r Run, key, fingerprint strin
 		if err != nil {
 			return Run{}, false, err
 		}
+	} else if r.Profile.Kind() == FileIngestionBatch {
+		var err error
+		r, err = s.snapshotIngestionLocked(r)
+		if err != nil {
+			return Run{}, false, err
+		}
+	} else if r.Ingestion != nil {
+		return Run{}, false, ErrIngestionNotExecutable
 	} else if r.Notebook != nil {
 		return Run{}, false, ErrNotebookNotExecutable
 	}

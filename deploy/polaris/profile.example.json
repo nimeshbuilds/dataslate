@@ -1,0 +1,15 @@
+{
+  "name": "dataslate-polaris",
+  "namespace": "dataslate-catalog",
+  "realm": "DATASLATE",
+  "replicas": 2,
+  "serviceAccount": "dataslate-polaris-irsa",
+  "databaseSecret": "polaris-database",
+  "databaseSchema": "polaris_schema",
+  "tlsSecret": "polaris-tls",
+  "tokenKeySecret": "polaris-token-keys",
+  "rootCredentialsSecret": "polaris-bootstrap",
+  "clientNamespace": "dataslate-system",
+  "clientLabels": {"app.kubernetes.io/name": "dataslate-api"},
+  "egress": [{"cidr": "10.20.30.0/24", "port": 5432}]
+}
