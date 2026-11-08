@@ -1,0 +1,153 @@
+{{- if .Values.workflow.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataslate.fullname" . }}-workflow
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+data:
+  bindings.json: {{ include "dataslate.workflowBindings" . | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "dataslate.fullname" . }}-workflow-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dataslate.fullname" . }}-workflow-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.workflow.controller.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: workflow-controller
+  template:
+    metadata:
+      labels:
+        {{- include "dataslate.selector" . | nindent 8 }}
+        app.kubernetes.io/component: workflow-controller
+      annotations:
+        checksum/workflow: {{ .Values.workflow | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "dataslate.fullname" . }}-workflow-controller
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- include "dataslate.podSecurityContext" . | nindent 8 }}
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      {{- include "dataslate.scheduling" . | nindent 6 }}
+      containers:
+        - name: workflow-controller
+          image: {{ include "dataslate.image" .Values.workflow.controller.image | quote }}
+          imagePullPolicy: {{ .Values.workflow.controller.image.pullPolicy }}
+          securityContext:
+            {{- include "dataslate.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 8086, protocol: TCP}
+          env:
+            - {name: DATASLATE_WORKFLOW_CONTROLLER_ADDR, value: "0.0.0.0:8086"}
+            - {name: DATASLATE_WORKFLOW_BINDINGS_FILE, value: /etc/dataslate/workflow/bindings.json}
+            {{- include "dataslate.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.workflow.controller.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: workflow, mountPath: /etc/dataslate/workflow, readOnly: true}
+            {{- include "dataslate.workflowCredentialMounts" .Values.workflow.credentials | nindent 12 }}
+      volumes:
+        - name: workflow
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-workflow
+        {{- include "dataslate.workflowCredentialVolumes" (dict "credentials" .Values.workflow.credentials "mode" "trigger") | nindent 8 }}
+        {{- include "dataslate.databaseVolume" . | nindent 8 }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dataslate.fullname" . }}-workflow-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: workflow-controller
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodLabels | nindent 14 }}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        {{- if eq .Values.postgres.mode "managed" }}
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ include "dataslate.postgresName" . }}
+        {{- else }}
+        {{- range .Values.networkPolicy.postgresEgressCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.networkPolicy.postgresPort }}}]
+    {{- range .Values.workflow.engineEgress }}
+    - to:
+        - ipBlock: {cidr: {{ .cidr | quote }}}
+      ports: [{protocol: TCP, port: {{ .port }}}]
+    {{- end }}
+{{- end }}
+{{- end }}
+
+{{- if and .Values.workflow.enabled .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dataslate.fullname" . }}-workflow-metadata
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  policyTypes: [Egress]
+  egress:
+    {{- range .Values.workflow.engineEgress }}
+    - to:
+        - ipBlock: {cidr: {{ .cidr | quote }}}
+      ports: [{protocol: TCP, port: {{ .port }}}]
+    {{- end }}
+{{- end }}

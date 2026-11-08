@@ -1,0 +1,28 @@
+{{- if .Values.workflow.enabled -}}
+{{- if and .Values.networkPolicy.enabled (empty .Values.workflow.engineEgress) -}}{{- fail "Workflow requires explicit workflow.engineEgress destinations" -}}{{- end -}}
+{{- $root := . -}}{{- $credentials := dict -}}{{- $readSecrets := dict -}}
+{{- range .Values.workflow.credentials -}}
+{{- if hasKey $credentials .id -}}{{- fail "Workflow credential IDs must be unique" -}}{{- end -}}
+{{- $_ := set $credentials .id true -}}{{- $_ := set $readSecrets (printf "%s/%s" .readTokenSecret.name .readTokenSecret.key) true -}}
+{{- end -}}
+{{- range .Values.workflow.credentials -}}
+{{- if hasKey $readSecrets (printf "%s/%s" .triggerTokenSecret.name .triggerTokenSecret.key) -}}{{- fail "Workflow read and trigger credentials must use distinct Secret keys" -}}{{- end -}}
+{{- end -}}
+{{- $ids := dict -}}
+{{- range .Values.workflow.bindings -}}
+{{- $key := printf "%s/%s" .workspaceId .id -}}
+{{- if hasKey $ids $key -}}{{- fail "Workflow binding IDs must be unique within a workspace" -}}{{- end -}}{{- $_ := set $ids $key true -}}
+{{- if eq (trim .name) "" -}}{{- fail "Workflow binding name must not be blank" -}}{{- end -}}
+{{- if not (hasKey $credentials .credentialsId) -}}{{- fail "Workflow binding credentialsId must reference workflow.credentials" -}}{{- end -}}
+{{- $subjects := dict -}}
+{{- range .allowedSubjects -}}
+{{- if ne .issuer $root.Values.oidc.issuer -}}{{- fail "Workflow subject issuers must match oidc.issuer" -}}{{- end -}}
+{{- if eq (trim .subject) "" -}}{{- fail "Workflow subjects must not be blank" -}}{{- end -}}
+{{- $subject := printf "%s/%s" .issuer .subject -}}
+{{- if hasKey $subjects $subject -}}{{- fail "Workflow subjects must be unique" -}}{{- end -}}{{- $_ := set $subjects $subject true -}}
+{{- end -}}
+{{- end -}}
+{{- if gt (len (include "dataslate.workflowBindings" .)) 1048576 -}}{{- fail "Workflow bindings exceed the 1 MiB configuration limit" -}}{{- end -}}
+{{- else -}}
+{{- if or .Values.workflow.bindings .Values.workflow.credentials -}}{{- fail "Workflow bindings and credentials require workflow.enabled=true" -}}{{- end -}}
+{{- end -}}

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise actual Helm renders and deployment security invariants, without a cluster."""
 import argparse
+from check_workflow_chart import check_workflow_chart
 import ipaddress
 import os
 from pathlib import Path
@@ -137,6 +138,7 @@ def main():
     check_sql_chart(run, external_args)
     from check_publication_chart import check_publication_chart
     check_publication_chart(run, external_args)
+    check_workflow_chart(run, external_args)
     from check_catalog_chart import check_catalog_chart
     check_catalog_chart(run, external_args)
     from check_search_chart import check_search_chart

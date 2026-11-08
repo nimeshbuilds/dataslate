@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataslate-airflow-provider"
+version = "0.1.0a1"
+description = "Pinned Airflow integration for DataSlate governed operations"
+requires-python = ">=3.11,<3.14"
+license = {text = "Apache-2.0"}
+dependencies = ["apache-airflow==3.4.0", "dataslate==0.1.0a1"]
+
+[project.entry-points.apache_airflow_provider]
+provider_info = "dataslate_airflow:get_provider_info"
+
+[tool.setuptools.packages.find]
+where = ["src"]

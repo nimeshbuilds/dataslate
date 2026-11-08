@@ -8,6 +8,7 @@ import (
 )
 
 type Store interface {
+	WorkflowStore
 	PublicationStore
 	IngestionOutcome(context.Context, string, string, ExecutionSubject) (IngestionOutcome, error)
 	SylonMemoryStore
@@ -38,6 +39,8 @@ type Store interface {
 	AdvanceRun(context.Context, RunLease, RunUpdate) (Run, error)
 }
 type MemoryStore struct {
+	workflows               map[string]*memoryWorkflow
+	workflowKeys            map[string]string
 	publications            map[string]*memoryPublication
 	publicationKeys         map[string]string
 	publicationReservations map[string]publicationReservation

@@ -1,0 +1,12 @@
+{
+  "chart": "airflow",
+  "chartVersion": "1.22.0",
+  "appVersion": "3.4.0",
+  "url": "https://archive.apache.org/dist/airflow/helm-chart/1.22.0/airflow-1.22.0.tgz",
+  "sha256": "1f7d1dfe3d58e2c54899950aba907a43625a18c8b6fb3c54760c21592129a5b6",
+  "baseImage": "apache/airflow:3.4.0-python3.12@sha256:818f94affc5bd7ce0be0cc04f2ace09aa8382e65190a73a08881229ff32700cb",
+  "constraintsURL": "https://raw.githubusercontent.com/apache/airflow/constraints-3.4.0/constraints-3.12.txt",
+  "constraintsSHA256": "3cecb4fe4a11d69bd772aef18434825bbed9b344703302ca0a55d50e30a33eda",
+  "providers": {"apache-airflow-providers-fab": "3.10.2", "apache-airflow-providers-git": "1.0.1"},
+  "verifiedOn": "2026-11-08"
+}

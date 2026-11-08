@@ -343,3 +343,49 @@ affinity:
 {{- end -}}
 {{- $bindings | toJson -}}
 {{- end -}}
+
+{{- define "dataslate.workflowBindings" -}}
+{{- $credentials := dict -}}
+{{- range .Values.workflow.credentials -}}
+{{- $_ := set $credentials .id . -}}
+{{- end -}}
+
+{{- $bindings := list -}}
+{{- range .Values.workflow.bindings -}}
+{{- $credential := get $credentials .credentialsId -}}
+{{- if not $credential -}}{{- fail "Workflow binding credentialsId must reference an entry in workflow.credentials" -}}{{- end -}}
+{{- $binding := omit . "credentialsId" -}}
+{{- $_ := set $binding "tokenFile" (printf "/etc/dataslate/workflow-credentials/%s/token" .credentialsId) -}}
+{{- if $credential.caSecret -}}
+{{- $_ := set $binding "caFile" (printf "/etc/dataslate/workflow-credentials/%s/ca.crt" .credentialsId) -}}
+{{- end -}}
+{{- $bindings = append $bindings $binding -}}
+{{- end -}}
+{{- $bindings | toJson -}}
+{{- end -}}
+
+{{- define "dataslate.workflowCredentialMounts" -}}
+{{- range . }}
+- name: workflow-credential-{{ .id }}
+  mountPath: {{ printf "/etc/dataslate/workflow-credentials/%s" .id | quote }}
+  readOnly: true
+{{- end }}
+{{- end -}}
+{{- define "dataslate.workflowCredentialVolumes" -}}
+{{- $mode := .mode -}}
+{{- range .credentials }}
+{{- $token := .readTokenSecret -}}{{- if eq $mode "trigger" -}}{{- $token = .triggerTokenSecret -}}{{- end }}
+- name: workflow-credential-{{ .id }}
+  projected:
+    defaultMode: 0440
+    sources:
+      - secret:
+          name: {{ $token.name | quote }}
+          items: [{key: {{ $token.key | quote }}, path: token}]
+      {{- if .caSecret }}
+      - secret:
+          name: {{ .caSecret.name | quote }}
+          items: [{key: {{ .caSecret.key | quote }}, path: ca.crt}]
+      {{- end }}
+{{- end }}
+{{- end -}}

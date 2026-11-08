@@ -162,3 +162,27 @@ Optional message contexts use `catalogs:[{bindingId,namespace,name}]` and `searc
 ## Verified Delta publication
 
 Use `run outcome`, `publication bindings/create/get/list/watch`, and `table list/get` to carry a verified ingestion output into governed SQL. Registration acceptance is not publication success. Persist the exact run, binding and key for recovery; no command silently reruns ingestion or registration. See the [UI, CLI and Python walkthrough](../docs/implementation/publication-clients.md).
+
+## Airflow workflows
+
+Use an administrator-approved Airflow 3.4.0 binding to inspect the current DAG, observed schedule and bounded history, then trigger its exact approved version. Airflow owns the schedule and task retries. No arbitrary DAG source, conf, schedule edits or backfill parameters are accepted by the trigger command.
+
+```sh
+dataslate workflow bindings --workspace engineering
+dataslate workflow definition --workspace engineering --binding orders
+dataslate workflow history --workspace engineering --binding orders
+dataslate workflow trigger --workspace engineering --binding orders \
+  --dag orders_daily --dag-version 3 --bundle-version REVIEWED_GIT_COMMIT --policy-version v1 \
+  --idempotency-key orders-reviewed-20261108-001
+dataslate workflow list --workspace engineering
+dataslate workflow get --workspace engineering --id WORKFLOW_RUN_ID
+dataslate workflow watch --workspace engineering --id WORKFLOW_RUN_ID --max-wait 600
+```
+
+Persist the binding, reviewed DAG ID/version, immutable bundle version, policy version and key before submitting. These exact fields are required; the client never fetches or substitutes a newer profile during submission or recovery. A changed binding conflicts before creating a new request. Repeat the complete exact request under the same identity to recover after an interrupted response. The SDK methods are `workflow_bindings`, `workflow_definition`, `workflow_history`, `create_workflow_run`, `workflow_runs`, `workflow_run` and `watch_workflow_run`. The watch generator only reads; it validates run identity and rejects revision regression.
+
+`workflow watch` returns exit code `0` for confirmed success, `3` for failure, `4` for final unknown, `1` for API/response/timeout errors, `2` for invalid local input and `130` for keyboard interruption. A nonfinal unknown keeps being observed. A final unknown or a client timeout does not establish that the Airflow workers stopped. No simulated cancel command is provided. Inspect the same upstream run through the operator runbook instead of submitting a new key to resolve uncertainty.
+
+Manual DataSlate runs are private to the initiating subject and current binding grant. The separately granted Airflow history intentionally includes scheduled and other users' manual-run metadata; it contains no logs, XComs, conf, source or query results. DAG tasks execute with their configured service principal, not the CLI user's token. See the [workflow deployment guide](../deploy/workflow/README.md) and [Airflow task provider](../integrations/airflow/README.md).
+
+For private certificate authorities use `dataslate --ca-file /mounted/ca.crt ...`, `DATASLATE_CA_FILE`, or `Client(..., ca_file='/mounted/ca.crt')`. This adds trusted certificates and preserves certificate/hostname verification. Tokens remain in `DATASLATE_API_TOKEN`; do not place them in command arguments.

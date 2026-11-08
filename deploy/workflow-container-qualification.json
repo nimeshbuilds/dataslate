@@ -1,0 +1,194 @@
+{
+  "schema": 1,
+  "checkedAt": "2026-11-08T15:39:11.238186+00:00",
+  "runtime": "containerd/nerdctl in an explicitly task-owned Colima VM",
+  "platform": "linux/arm64",
+  "vmResources": {
+    "cpus": 2,
+    "memoryGiB": 4,
+    "dataDiskGiB": 24,
+    "rootDiskGiB": 8,
+    "hostFilesystemMounts": false
+  },
+  "sourceContextSHA256": {
+    "api": "16816443d013486af9c4e3e4265b2780f1f2c5061d80822fe8d72eba8c7e305c",
+    "web": "32170999361536b71286288f0589a8e78347660a664df90154ec05c154530849"
+  },
+  "qualificationScriptSHA256": "2f0082fdb3718b00f3e9e0a0d41048ac492d1f6c6b41684b9e177528e97c522e",
+  "builds": [
+    {
+      "image": "api",
+      "manifestDigest": "sha256:c6e6ec80b0f6060244c47d6126e445d2bbc921e7e22c9bcf5b163713c680927e",
+      "configDigest": "sha256:e0de7d1e71eea5a12b5519ae0d22d118e6a7953ddaa4a1906ef6b33ee48fd453",
+      "dockerfile": "api/Dockerfile",
+      "dockerfileSHA256": "baf098cb47da646aaf5ca6cf4346b1a64767ffe7b40b347b58f184ab0115d839",
+      "passed": true
+    },
+    {
+      "image": "execution",
+      "manifestDigest": "sha256:0723d1f40e044a34e2f4ec1e96f9730a0fb6f5dd4f4f39a3c5cc7e42ae3a36e4",
+      "configDigest": "sha256:c7ecbf7632b0ee42a1f4b7d1c26cc179a95f6b96d8169fd196e717654a5305e4",
+      "dockerfile": "api/ControllerDockerfile",
+      "dockerfileSHA256": "a8fc585cd34c22a1a821b55c696ebff4fcd13a24140e70c632fa73f0264f656a",
+      "passed": true
+    },
+    {
+      "image": "sql",
+      "manifestDigest": "sha256:4e88784241e3d29d70d46f7675338bfda7c4c82cb1f5d7e07aeaefbd42a54f23",
+      "configDigest": "sha256:64c5f72c7bad8f42c46e95d770c88ee6c78e4e6270f786eeb1adb839da4915fa",
+      "dockerfile": "api/SQLControllerDockerfile",
+      "dockerfileSHA256": "9dfb22366e003d95817fb92aab9e2b40a02a5b1657dd46e1573e7ba1d86d52e8",
+      "passed": true
+    },
+    {
+      "image": "search",
+      "manifestDigest": "sha256:c0c83b15441d7be34948d4df7c5afa455d063f4069d7873961d28c1680510cca",
+      "configDigest": "sha256:ad71a9ddd420a334c3daa2228329fc853e4c7b9bbd236dd1de39b0dec94b865c",
+      "dockerfile": "api/SearchControllerDockerfile",
+      "dockerfileSHA256": "d92ecbf389e2051c98b5696497d663072499c5487e0dc68a67393b331e57c0e0",
+      "passed": true
+    },
+    {
+      "image": "sylon",
+      "manifestDigest": "sha256:2533f8df56028a5fc8bd0b6853130e8f9b96e1942d1fc494c894b86e87e7aaaa",
+      "configDigest": "sha256:9f716bf97a95e6acfee03879dc348d61f3edf504cc41cd1403cbf93a7cf196d7",
+      "dockerfile": "api/SylonControllerDockerfile",
+      "dockerfileSHA256": "bbd56536a02a6c3c49d1edb04ca6f7545a8ef73a676ca76e20b10c9697ccd662",
+      "passed": true
+    },
+    {
+      "image": "publication",
+      "manifestDigest": "sha256:8301b64990f0482eddea2f77c69e042cee212a07d16cc0ce9bde2d8f2ad3e8b2",
+      "configDigest": "sha256:acec2c93ed67632002ef83627b2db6030b5a6c3fcbb31c5f15f85588b9b19dac",
+      "dockerfile": "api/PublicationControllerDockerfile",
+      "dockerfileSHA256": "83c3d79ebfef16d40f4fd5e0cadf5068f7b195ec0aa7c1658bd682c89830ab66",
+      "passed": true
+    },
+    {
+      "image": "workflow",
+      "manifestDigest": "sha256:06bad6299e02c20df763041c751f5b94bd359f2f6a0391264c0ab097d0882887",
+      "configDigest": "sha256:cff7e071668b006899ca6cdc6e320e6cc477c813a56858c2eadd790817129bc7",
+      "dockerfile": "api/WorkflowControllerDockerfile",
+      "dockerfileSHA256": "4d49a2aadc96f9480ad9f697f4347206434905c7eadf26bf5c95a6b237583a2e",
+      "passed": true
+    },
+    {
+      "image": "web",
+      "manifestDigest": "sha256:408baaeff889f5bc337ea17ab18a382a76608a677a34dc9dbcd110683d6e2412",
+      "configDigest": "sha256:10973e00bb5de3faadd8b37b34b9d38501d5ec06e649de2c649381a2b3260053",
+      "dockerfile": "web/Dockerfile",
+      "dockerfileSHA256": "9b32702a6d1cc778bf58775e49638d035ad07a12d9cce069b37c358c849e061d",
+      "passed": true
+    }
+  ],
+  "checks": {
+    "images": [
+      {
+        "image": "api",
+        "configDigest": "sha256:e0de7d1e71eea5a12b5519ae0d22d118e6a7953ddaa4a1906ef6b33ee48fd453",
+        "manifestDigest": "sha256:c6e6ec80b0f6060244c47d6126e445d2bbc921e7e22c9bcf5b163713c680927e",
+        "repoDigests": [
+          "dataslate-api@sha256:c6e6ec80b0f6060244c47d6126e445d2bbc921e7e22c9bcf5b163713c680927e"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "execution",
+        "configDigest": "sha256:c7ecbf7632b0ee42a1f4b7d1c26cc179a95f6b96d8169fd196e717654a5305e4",
+        "manifestDigest": "sha256:0723d1f40e044a34e2f4ec1e96f9730a0fb6f5dd4f4f39a3c5cc7e42ae3a36e4",
+        "repoDigests": [
+          "dataslate-execution@sha256:0723d1f40e044a34e2f4ec1e96f9730a0fb6f5dd4f4f39a3c5cc7e42ae3a36e4"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "sql",
+        "configDigest": "sha256:64c5f72c7bad8f42c46e95d770c88ee6c78e4e6270f786eeb1adb839da4915fa",
+        "manifestDigest": "sha256:4e88784241e3d29d70d46f7675338bfda7c4c82cb1f5d7e07aeaefbd42a54f23",
+        "repoDigests": [
+          "dataslate-sql@sha256:4e88784241e3d29d70d46f7675338bfda7c4c82cb1f5d7e07aeaefbd42a54f23"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "search",
+        "configDigest": "sha256:ad71a9ddd420a334c3daa2228329fc853e4c7b9bbd236dd1de39b0dec94b865c",
+        "manifestDigest": "sha256:c0c83b15441d7be34948d4df7c5afa455d063f4069d7873961d28c1680510cca",
+        "repoDigests": [
+          "dataslate-search@sha256:c0c83b15441d7be34948d4df7c5afa455d063f4069d7873961d28c1680510cca"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "sylon",
+        "configDigest": "sha256:9f716bf97a95e6acfee03879dc348d61f3edf504cc41cd1403cbf93a7cf196d7",
+        "manifestDigest": "sha256:2533f8df56028a5fc8bd0b6853130e8f9b96e1942d1fc494c894b86e87e7aaaa",
+        "repoDigests": [
+          "dataslate-sylon@sha256:2533f8df56028a5fc8bd0b6853130e8f9b96e1942d1fc494c894b86e87e7aaaa"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "publication",
+        "configDigest": "sha256:acec2c93ed67632002ef83627b2db6030b5a6c3fcbb31c5f15f85588b9b19dac",
+        "manifestDigest": "sha256:8301b64990f0482eddea2f77c69e042cee212a07d16cc0ce9bde2d8f2ad3e8b2",
+        "repoDigests": [
+          "dataslate-publication@sha256:8301b64990f0482eddea2f77c69e042cee212a07d16cc0ce9bde2d8f2ad3e8b2"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "workflow",
+        "configDigest": "sha256:cff7e071668b006899ca6cdc6e320e6cc477c813a56858c2eadd790817129bc7",
+        "manifestDigest": "sha256:06bad6299e02c20df763041c751f5b94bd359f2f6a0391264c0ab097d0882887",
+        "repoDigests": [
+          "dataslate-workflow@sha256:06bad6299e02c20df763041c751f5b94bd359f2f6a0391264c0ab097d0882887"
+        ],
+        "user": "65532:65532"
+      },
+      {
+        "image": "web",
+        "configDigest": "sha256:10973e00bb5de3faadd8b37b34b9d38501d5ec06e649de2c649381a2b3260053",
+        "manifestDigest": "sha256:408baaeff889f5bc337ea17ab18a382a76608a677a34dc9dbcd110683d6e2412",
+        "repoDigests": [
+          "dataslate-web@sha256:408baaeff889f5bc337ea17ab18a382a76608a677a34dc9dbcd110683d6e2412"
+        ],
+        "user": "101:101"
+      }
+    ],
+    "nonRootReadOnlyCapDropNoNewPrivileges": true,
+    "apiDevelopmentLoopbackStartup": true,
+    "apiProductionMisconfigurationRejected": true,
+    "apiDevelopmentExposureRejected": true,
+    "webAssetsSPAProxyHeadersAndCallbackLogRedaction": true,
+    "webInvalidUpstreamRejected": true,
+    "controllersVerifiedTLSIdleReconciliationRestartAndGracefulShutdown": [
+      "execution",
+      "sql",
+      "search",
+      "sylon",
+      "publication",
+      "workflow"
+    ],
+    "controllersInsecureDatabaseRejected": true,
+    "sparkDiscoveryProtocolFixture": true,
+    "notTested": [
+      "production OIDC login",
+      "Spark operator execution",
+      "live controller jobs",
+      "cloud data services",
+      "multi-node/HA",
+      "amd64 images"
+    ]
+  },
+  "scope": "Actual built production images: security contexts, bounded startup/proxy/idle reconciliation/restart/shutdown and rejection checks. Empty controller bindings; Spark discovery uses a local TLS protocol fixture.",
+  "cleanup": {
+    "coreContainersRemoved": true,
+    "corePrivateFixturesAndTunnelRemoved": true,
+    "ownedVMAndContainerDataRemoved": true,
+    "ownedPostgresStoppedAndDataRemoved": true,
+    "ownedTLSAndCredentialFixturesRemoved": true,
+    "existingToolingPreserved": true,
+    "verifiedAt": "2026-11-08T15:40:13.904934+00:00"
+  }
+}

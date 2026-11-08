@@ -19,6 +19,7 @@ spec:
         dataslate.io/tier: backend
       annotations:
         checksum/execution: {{ .Values.execution | toJson | sha256sum }}
+        checksum/workflow: {{ .Values.workflow | toJson | sha256sum }}
         checksum/publication: {{ .Values.publication | toJson | sha256sum }}
         checksum/sql: {{ .Values.sql | toJson | sha256sum }}
         checksum/sylon: {{ .Values.sylon | toJson | sha256sum }}
@@ -33,7 +34,7 @@ spec:
       automountServiceAccountToken: {{ .Values.execution.enabled }}
       securityContext:
         {{- include "dataslate.podSecurityContext" . | nindent 8 }}
-        {{- if or .Values.catalog.enabled .Values.search.enabled }}
+        {{- if or .Values.catalog.enabled .Values.search.enabled .Values.workflow.enabled }}
         runAsUser: 65532
         runAsGroup: 65532
         fsGroup: 65532
@@ -66,6 +67,9 @@ spec:
             {{- if .Values.search.enabled }}
             - {name: DATASLATE_SEARCH_BINDINGS_FILE, value: /etc/dataslate/search/bindings.json}
             {{- end }}
+            {{- if .Values.workflow.enabled }}
+            - {name: DATASLATE_WORKFLOW_BINDINGS_FILE, value: /etc/dataslate/workflow/bindings.json}
+            {{- end }}
             {{- if .Values.publication.enabled }}
             - {name: DATASLATE_PUBLICATION_BINDINGS_FILE, value: /etc/dataslate/publication/bindings.json}
             {{- end }}
@@ -92,6 +96,10 @@ spec:
           volumeMounts:
             - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
             - {name: tmp, mountPath: /tmp}
+            {{- if .Values.workflow.enabled }}
+            - {name: workflow, mountPath: /etc/dataslate/workflow, readOnly: true}
+            {{- include "dataslate.workflowCredentialMounts" .Values.workflow.credentials | nindent 12 }}
+            {{- end }}
             {{- if .Values.catalog.enabled }}
             - {name: catalog, mountPath: /etc/dataslate/catalog, readOnly: true}
             {{- range .Values.catalog.credentials }}
@@ -117,6 +125,12 @@ spec:
             - {name: execution, mountPath: /etc/dataslate/execution, readOnly: true}
             {{- end }}
       volumes:
+        {{- if .Values.workflow.enabled }}
+        - name: workflow
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-workflow
+        {{- include "dataslate.workflowCredentialVolumes" (dict "credentials" .Values.workflow.credentials "mode" "read") | nindent 8 }}
+        {{- end }}
         {{- if .Values.publication.enabled }}
         - name: publication
           configMap:

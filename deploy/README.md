@@ -191,3 +191,9 @@ The [Sylon contract](../docs/implementation/sylon-contract.md) defines private h
 ## Ingestion output to governed SQL
 
 The optional [Delta publication controller](publication/README.md) verifies durable runtime outcomes and registers exact administrator-approved targets with a reviewed Trino Hive/Glue catalog. It uses a separate privileged service identity; read-only SQL bindings and row/column policy remain independent. [Example values](publication/values.example.yaml) require your actual pipeline IDs, runtime digests, identities, credentials by reference and network destinations. Polaris continues to manage the separate Iceberg integration.
+
+## Workflow integration and installation preflight
+
+The optional [Airflow workflow profile](workflow/README.md) connects approved versioned DAGs to the workspace/API/CLI and a separate durable controller. The [Airflow provider](../integrations/airflow/README.md) chains exact saved DataSlate operations without introducing a second scheduler. Read and trigger credentials are projected into different workloads.
+
+Run the [read-only preflight](preflight/README.md) with the intended context and all reviewed values layers before installing. It inspects the actual chart render, existing ownership, operator APIs and referenced credential key names. Unknown network/identity/cloud checks remain explicit; it neither installs/adopts resources nor certifies production readiness.

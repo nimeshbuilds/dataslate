@@ -15,12 +15,13 @@ import (
 )
 
 type Server struct {
-	SearchEmbedder SearchEmbedder
-	CatalogBackend CatalogBackend
-	Config         Config
-	Store          Store
-	Auth           Authenticator
-	Backend        ExecutionBackend
+	WorkflowBackend WorkflowBackend
+	SearchEmbedder  SearchEmbedder
+	CatalogBackend  CatalogBackend
+	Config          Config
+	Store           Store
+	Auth            Authenticator
+	Backend         ExecutionBackend
 }
 
 func (s *Server) Handler() http.Handler {
@@ -91,6 +92,12 @@ func (s *Server) Handler() http.Handler {
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/logs", s.runLogs)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/source", s.runSource)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/runs/{id}/ingestion-outcome", s.ingestionOutcome)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/workflow-bindings", s.workflowBindings)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/workflow-bindings/{id}/definition", s.workflowDefinition)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/workflow-bindings/{id}/history", s.workflowHistory)
+	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/workflow-runs", s.createWorkflow)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/workflow-runs", s.listWorkflows)
+	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/workflow-runs/{id}", s.getWorkflow)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/publication-bindings", s.publicationBindings)
 	api.HandleFunc("POST /api/v1/workspaces/{workspaceId}/table-publications", s.createPublication)
 	api.HandleFunc("GET /api/v1/workspaces/{workspaceId}/table-publications", s.listPublications)

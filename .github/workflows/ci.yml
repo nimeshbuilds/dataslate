@@ -57,6 +57,8 @@ jobs:
         run: docker build -f api/SQLControllerDockerfile -t dataslate-sql-controller:ci api
       - name: Publication controller image build
         run: docker build -f api/PublicationControllerDockerfile -t dataslate-publication-controller:ci api
+      - name: Workflow controller image build
+        run: docker build -f api/WorkflowControllerDockerfile -t dataslate-workflow-controller:ci api
       - name: Search controller image build
         run: docker build -f api/SearchControllerDockerfile -t dataslate-search-controller:ci api
       - name: Sylon controller image build
@@ -126,6 +128,8 @@ jobs:
         run: python deploy/sql/fetch.py
       - name: Fetch pinned Polaris chart
         run: python deploy/polaris/fetch.py
+      - name: Fetch pinned optional Airflow chart
+        run: python deploy/airflow/fetch.py
       - name: Validate governed SQL profile
         run: python -m unittest discover -s deploy/sql -p 'test_*.py' -v
         env:
@@ -134,12 +138,51 @@ jobs:
         run: python -m unittest discover -s deploy/polaris -p 'test_*.py' -v
         env:
           HELM_BIN: deploy/.cache/helm
+      - name: Validate optional managed Airflow profile
+        run: python -m unittest discover -s deploy/airflow -p 'test_*.py' -v
+        env:
+          HELM_BIN: deploy/.cache/helm
       - name: Validate compute boundary generator
         run: python -m unittest discover -s deploy/compute -p 'test_*.py' -v
       - name: Validate deployment profiles
         run: bash deploy/scripts/check.sh
         env:
           HELM_BIN: deploy/.cache/helm
+      - name: Validate read-only installation preflight
+        run: python -m unittest discover -s deploy/preflight -p 'test_*.py' -v
+        env:
+          DATASLATE_PREFLIGHT_HELM: deploy/.cache/helm
+
+  airflow-provider:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with: {python-version: "3.12"}
+      - name: Verify reviewed Airflow dependency constraints
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          root = Path('integrations/airflow')
+          lock = json.loads((root / 'constraints.lock.json').read_text())
+          assert hashlib.sha256((root / 'constraints-3.12.txt').read_bytes()).hexdigest() == lock['sha256']
+          PY
+      - name: Install pinned Airflow and local provider
+        run: python -m pip install -c integrations/airflow/constraints-3.12.txt ./sdk/python ./integrations/airflow
+      - name: Provider, TLS authentication, XCom and example DAG checks
+        run: python -m unittest discover -s integrations/airflow/tests -p 'test_*.py' -v
+        env:
+          AIRFLOW_HOME: ${{ runner.temp }}/dataslate-airflow-tests
+          PYTHONPATH: sdk/python/src:integrations/airflow/src
+      - name: Prepare allowlisted Airflow image context
+        run: python deploy/airflow/build_context.py --output "$RUNNER_TEMP/dataslate-airflow-context"
+      - name: Build the pinned optional Airflow runtime
+        run: docker build -f "$RUNNER_TEMP/dataslate-airflow-context/deploy/airflow/Dockerfile" -t dataslate-airflow:ci "$RUNNER_TEMP/dataslate-airflow-context"
+      - name: Verify installed providers in the actual isolated image
+        run: docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges --entrypoint python dataslate-airflow:ci /opt/dataslate-profile/runtime_check.py --imports-only
 
   ingestion-runtime:
     runs-on: ubuntu-latest

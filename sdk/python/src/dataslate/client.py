@@ -6,13 +6,14 @@ import ipaddress
 import json
 import math
 import re
+import ssl
 import time
 from datetime import datetime
 from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 
 class DataSlateError(Exception):
@@ -112,7 +113,8 @@ class Client:
     """
 
     def __init__(self, base_url: str = "http://127.0.0.1:8080", *, token: str | None = None,
-                 timeout: float = 30, max_response_bytes: int = 16 * 1024 * 1024):
+                 timeout: float = 30, max_response_bytes: int = 16 * 1024 * 1024,
+                 ca_file: str | None = None):
         parsed = urlsplit(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise ValueError("API URL must have an HTTP(S) scheme and host")
@@ -135,7 +137,10 @@ class Client:
         self._token = token
         self.timeout = timeout
         self.max_response_bytes = max_response_bytes
-        self._opener = build_opener(_NoRedirect())
+        context = ssl.create_default_context()
+        if ca_file is not None:
+            context.load_verify_locations(cafile=ca_file)
+        self._opener = build_opener(_NoRedirect(), HTTPSHandler(context=context))
 
     def _read_json(self, response) -> Any:
         try:
@@ -306,6 +311,88 @@ class Client:
 
     def sql_bindings(self, workspace_id: str):
         return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sql-bindings")
+
+    def workflow_bindings(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/workflow-bindings")
+
+    def workflow_definition(self, workspace_id: str, binding_id: str):
+        """Read the currently deployed graph/schedule; this does not edit Airflow."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/workflow-bindings/{_segment(binding_id)}/definition")
+
+    def workflow_history(self, workspace_id: str, binding_id: str):
+        """Read bounded scheduled/manual metadata under the explicit DAG grant."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/workflow-bindings/{_segment(binding_id)}/history")
+
+    def workflow_runs(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/workflow-runs")
+
+    @staticmethod
+    def _workflow(value, workspace_id, run_id=None):
+        message = "Workflow response has an invalid identity, version or state; preserve the original request for recovery"
+        if (not isinstance(value, dict) or value.get("workspaceId") != workspace_id
+                or run_id is not None and value.get("id") != run_id
+                or not isinstance(value.get("state"), str)
+                or value["state"] not in {"queued", "checking", "submitting", "running", "succeeded", "failed", "unknown"}
+                or type(value.get("revision")) is not int or value["revision"] < 1
+                or type(value.get("dagVersion")) is not int or value["dagVersion"] < 1
+                or type(value.get("dispatchStarted")) is not bool
+                or type(value.get("reconciliationComplete")) is not bool
+                or value["state"] in {"succeeded", "failed"} and not value["reconciliationComplete"]
+                or value["reconciliationComplete"] and value["state"] not in {"succeeded", "failed", "unknown"}
+                or value["state"] == "succeeded" and not value["dispatchStarted"]):
+            raise DataSlateError("invalid_response", message)
+        try:
+            for field in ("id", "bindingId", "dagId", "backendRunId", "policyVersion", "bundleVersion"):
+                _segment(value.get(field))
+            if value["state"] == "succeeded":
+                _rfc3339(value.get("observedAt"))
+        except ValueError:
+            raise DataSlateError("invalid_response", message) from None
+        return value
+
+    def create_workflow_run(self, workspace_id: str, binding_id: str, *, dag_id: str, dag_version: int,
+                            bundle_version: str, policy_version: str, idempotency_key: str):
+        """Submit the exact reviewed DAG/policy tuple; never fetch or substitute a newer selection."""
+        for value in (binding_id, dag_id, bundle_version, policy_version):
+            _segment(value)
+        _positive_revision(dag_version)
+        selection = {"bindingId": binding_id, "dagId": dag_id, "dagVersion": dag_version,
+                     "bundleVersion": bundle_version, "policyVersion": policy_version}
+        value = self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/workflow-runs",
+                             {**selection, "idempotencyKey": _run_key(idempotency_key)})
+        if not isinstance(value, dict) or type(value.get("replayed")) is not bool:
+            raise DataSlateError("invalid_response", "Workflow acceptance is unconfirmed; preserve the original request")
+        run = self._workflow(value.get("run"), workspace_id)
+        if any(run[key] != expected or type(run[key]) is not type(expected) for key, expected in selection.items()):
+            raise DataSlateError("invalid_response", "Workflow receipt does not match the exact reviewed DAG and policy")
+        return value
+
+    def workflow_run(self, workspace_id: str, run_id: str):
+        value = self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/workflow-runs/{_segment(run_id)}")
+        return self._workflow(value, workspace_id, run_id)
+
+    def watch_workflow_run(self, workspace_id: str, run_id: str, *, interval: float = 2, max_wait: float = 300):
+        """Observe only. Timeout/final unknown does not cancel or retrigger Airflow."""
+        if not all(type(v) in (int, float) and math.isfinite(v) and v > 0 for v in (interval, max_wait)):
+            raise ValueError("interval and max_wait must be finite positive seconds")
+        deadline, previous = time.monotonic() + max_wait, None
+        while True:
+            current = self.workflow_run(workspace_id, run_id)
+            if previous is not None and (current["revision"] < previous["revision"] or any(
+                    current[key] != previous[key] for key in
+                    ("bindingId", "dagId", "dagVersion", "bundleVersion", "policyVersion", "backendRunId"))):
+                raise DataSlateError("invalid_response", "Workflow revision regressed or immutable identity changed")
+            if current != previous:
+                yield current
+                previous = current
+            if current["reconciliationComplete"]:
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DataSlateError("watch_timeout", "Stopped watching; Airflow may still be active")
+            time.sleep(min(interval, remaining))
+            if time.monotonic() >= deadline:
+                raise DataSlateError("watch_timeout", "Stopped watching; Airflow may still be active")
 
     def ingestion_outcome(self, workspace_id: str, run_id: str):
         """Read durable runtime evidence. A succeeded run alone is not a verified table."""

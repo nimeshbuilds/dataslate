@@ -8913,6 +8913,979 @@
           }
         }
       }
+    },
+    "/api/v1/workspaces/{workspaceId}/workflow-bindings": {
+      "get": {
+        "operationId": "listWorkflowBindings",
+        "summary": "listWorkflowBindings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowBinding"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bounded Airflow metadata unavailable or incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/workflow-bindings/{id}/definition": {
+      "get": {
+        "operationId": "getWorkflowDefinition",
+        "summary": "getWorkflowDefinition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDefinition"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bounded Airflow metadata unavailable or incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/workflow-bindings/{id}/history": {
+      "get": {
+        "operationId": "listWorkflowHistory",
+        "summary": "listWorkflowHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "maxItems": 50,
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowHistoryRun"
+                      }
+                    },
+                    "observedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "observedAt",
+                    "truncated"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bounded Airflow metadata unavailable or incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/workflow-runs": {
+      "post": {
+        "operationId": "createWorkflowRun",
+        "summary": "createWorkflowRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowReceipt"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bounded Airflow metadata unavailable or incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowInput"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listWorkflowRuns",
+        "summary": "listWorkflowRuns",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "maxItems": 200,
+                      "items": {
+                        "$ref": "#/components/schemas/WorkflowRun"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bounded Airflow metadata unavailable or incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/workflow-runs/{id}": {
+      "get": {
+        "operationId": "getWorkflowRun",
+        "summary": "getWorkflowRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRun"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bounded Airflow metadata unavailable or incompatible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13185,6 +14158,432 @@
           "verifiedAt",
           "queryMode",
           "sql"
+        ]
+      },
+      "WorkflowBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "dagId": {
+            "type": "string"
+          },
+          "bundleVersion": {
+            "type": "string"
+          },
+          "dagVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "airflowVersion": {
+            "const": "3.4.0"
+          },
+          "maxRunSeconds": {
+            "type": "integer",
+            "minimum": 60,
+            "maximum": 86400
+          },
+          "scheduler": {
+            "const": "airflow"
+          },
+          "retryOwner": {
+            "const": "airflow"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "name",
+          "policyVersion",
+          "dagId",
+          "bundleVersion",
+          "dagVersion",
+          "airflowVersion",
+          "maxRunSeconds",
+          "scheduler",
+          "retryOwner"
+        ]
+      },
+      "WorkflowTask": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "downstreamTaskIds": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "downstreamTaskIds"
+        ]
+      },
+      "WorkflowDefinition": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "bindingId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "dagId": {
+            "type": "string"
+          },
+          "bundleVersion": {
+            "type": "string"
+          },
+          "scheduleSummary": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "dagVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "hasImportErrors": {
+            "type": "boolean"
+          },
+          "nextRunAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "versionMatches": {
+            "type": "boolean"
+          },
+          "canTrigger": {
+            "type": "boolean"
+          },
+          "reasonCode": {
+            "enum": [
+              "ready",
+              "version_mismatch",
+              "stale",
+              "import_errors",
+              "paused"
+            ]
+          },
+          "tasks": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTask"
+            }
+          }
+        },
+        "required": [
+          "bindingId",
+          "workspaceId",
+          "policyVersion",
+          "dagId",
+          "bundleVersion",
+          "scheduleSummary",
+          "timezone",
+          "dagVersion",
+          "observedAt",
+          "paused",
+          "stale",
+          "hasImportErrors",
+          "versionMatches",
+          "canTrigger",
+          "reasonCode",
+          "tasks"
+        ]
+      },
+      "WorkflowHistoryRun": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dagId": {
+            "type": "string"
+          },
+          "backendRunId": {
+            "type": "string"
+          },
+          "bundleVersion": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "success",
+              "failed"
+            ]
+          },
+          "runType": {
+            "enum": [
+              "manual",
+              "scheduled",
+              "backfill",
+              "asset_triggered"
+            ]
+          },
+          "dagVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "logicalDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "dagId",
+          "backendRunId",
+          "bundleVersion",
+          "state",
+          "runType",
+          "dagVersion"
+        ]
+      },
+      "WorkflowTaskInstance": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mapIndex": {
+            "type": "integer",
+            "minimum": -1
+          },
+          "tryNumber": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "removed",
+              "scheduled",
+              "queued",
+              "running",
+              "success",
+              "restarting",
+              "failed",
+              "up_for_retry",
+              "up_for_reschedule",
+              "upstream_failed",
+              "skipped",
+              "deferred"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "mapIndex",
+          "tryNumber",
+          "state"
+        ]
+      },
+      "WorkflowRun": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "bindingId": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "dagId": {
+            "type": "string"
+          },
+          "bundleVersion": {
+            "type": "string"
+          },
+          "backendRunId": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "dagVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "submittedBy": {
+            "$ref": "#/components/schemas/ExecutionSubject"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "checking",
+              "submitting",
+              "running",
+              "succeeded",
+              "failed",
+              "unknown"
+            ]
+          },
+          "dispatchStarted": {
+            "type": "boolean"
+          },
+          "reconciliationComplete": {
+            "type": "boolean"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "tasks": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/WorkflowTaskInstance"
+            }
+          },
+          "tasksTruncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "bindingId",
+          "policyVersion",
+          "dagId",
+          "bundleVersion",
+          "backendRunId",
+          "message",
+          "createdAt",
+          "updatedAt",
+          "revision",
+          "dagVersion",
+          "submittedBy",
+          "state",
+          "dispatchStarted",
+          "reconciliationComplete",
+          "tasks",
+          "tasksTruncated"
+        ]
+      },
+      "WorkflowInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "bindingId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "dagId": {
+            "type": "string"
+          },
+          "dagVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000
+          },
+          "bundleVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bindingId",
+          "idempotencyKey",
+          "policyVersion",
+          "dagId",
+          "dagVersion",
+          "bundleVersion"
+        ]
+      },
+      "WorkflowReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/WorkflowRun"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "run",
+          "replayed"
         ]
       }
     }

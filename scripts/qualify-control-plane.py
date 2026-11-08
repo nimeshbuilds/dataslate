@@ -105,7 +105,7 @@ def main():
     sql("CREATE TABLE dataslate_denied_ddl_probe(id integer)", runtime_role=True, failure=True)
     sql("DELETE FROM dataslate_schema_migrations WHERE false", runtime_role=True, failure=True)
     results = []
-    for kind in ("sql", "search", "sylon", "publication"):
+    for kind in ("sql", "search", "sylon", "publication", "workflow"):
         binary = args.binaries / f"dataslate-{kind}-controller"
         selected_port = port()
         prefix = "DATASLATE_" + kind.upper()

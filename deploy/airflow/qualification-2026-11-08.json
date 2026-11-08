@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "profile": "managed-airflow-localexecutor",
+  "airflowVersion": "3.4.0",
+  "chartVersion": "1.22.0",
+  "platform": "linux/arm64",
+  "image": "dataslate-airflow@sha256:0d962a789cd0a0242facc6308265df3368ce53d23e64d0f7e57a80ef6a5a340d",
+  "checks": [
+    "image-build-provider-discovery",
+    "metadata-migration-read-only-root",
+    "synchronous-async-database-verified-tls",
+    "api-verified-https-health",
+    "anonymous-denied",
+    "fab-reader-metadata-allowed",
+    "fab-reader-trigger-denied",
+    "separate-broker-token",
+    "weak-tls-startup-denied",
+    "untrusted-database-ca-denied"
+  ],
+  "notQualified": [
+    "kubernetes-installation",
+    "dag-scheduling-on-kubernetes",
+    "spark-task-execution",
+    "upgrade-recovery",
+    "token-rotation-controller"
+  ],
+  "verifiedOn": "2026-11-08",
+  "sourceSHA256": {
+    "deploy/airflow/Dockerfile": "89ac5feee321e3ca43f8a63b15120cd103e0d439f7f3c333f69701d3fb2447ad",
+    "deploy/airflow/constraints-3.4.0-python3.12.txt": "3cecb4fe4a11d69bd772aef18434825bbed9b344703302ca0a55d50e30a33eda",
+    "deploy/airflow/launch.py": "22c2bda29260a50fc4e91d0ef0bf8c9c89045fc3bda139da013a1031c428658e",
+    "deploy/airflow/runtime_check.py": "bc894d4fc6923261612e727d96edc27e3f407d1c4ab8326468264e13f2f13dd9",
+    "integrations/airflow/pyproject.toml": "a7d6ca6f7ecb9ae3e53126ee72bf69843a56a24a64ac1862b6bbfb6ae5731cfd",
+    "integrations/airflow/src/dataslate_airflow/__init__.py": "40d7898a4d6c5ede01de605ed6c0b44a1ef8799b3d8ffa5754978f6e7057e9d5",
+    "integrations/airflow/src/dataslate_airflow/core.py": "108d1ea684fefd98a24ede31a55e6022ae21dafad6aa5d4f888dcf54fe757c08",
+    "integrations/airflow/src/dataslate_airflow/hooks.py": "1cf0f8e9ea7164eacf42634bcc42ce9ff7c048db40fdda45a4c8745532dffb42",
+    "integrations/airflow/src/dataslate_airflow/operators.py": "407e68092c3caaf60d30d8a37d6cfc52ad82cd1e0d1182973e248bee5d23a3b5",
+    "sdk/python/pyproject.toml": "af948bc70c8fbae46b1214f796e6be95a79058f7eddd9d378d844142810ba436",
+    "sdk/python/src/dataslate/__init__.py": "dc61d5a60fe8ee79c22293c399e9f1fc470e8d3206d2ef530b88810c5f8cf0f5",
+    "sdk/python/src/dataslate/cli.py": "7a5606a1669ca21c99e24810f8df7933f3166c6d4e92409bfb126ffedf6af76b",
+    "sdk/python/src/dataslate/client.py": "61ca4811c1305f778b1e9af31f7cf2bc529a9799ed17511a277b9a127a19af11"
+  },
+  "cleanup": "Owned API container, database/role, SSH tunnel and remote credential fixtures removed; parent retains VM and image for final qualification."
+}

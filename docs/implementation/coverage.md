@@ -48,7 +48,7 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 | Push ingestion endpoint | Product ingest API + durable buffering | Admission, dedup policy, durable acknowledgement, publication and backpressure | Planned |
 | Declarative ETL | Spark Declarative Pipelines | Dependency graph, incremental state, expectations and deterministic update | Planned |
 | dbt | Qualified dbt adapter | Target dialect/catalog compatibility and grants, source/model lineage | Planned |
-| Workflow orchestration | Airflow | DAG versions, schedules, backfill, one retry owner, coherent run timeline | Planned |
+| Workflow orchestration | Airflow 3.4.0 + durable DataSlate workflow controller | DAG versions, schedules, backfill, one retry owner, coherent run timeline | Approved immutable-bundle manual triggers, deployed schedules/graphs, sanitized upstream history and owner task observations implemented across UI/API/CLI; real local Airflow/PostgreSQL/browser flow passes. An optional pinned LocalExecutor deployment profile renders for trusted DAG authors. Cluster installation/upgrades, DAG/schedule editing, backfills, alerts and production task identities remain open |
 | Maintenance | Format-native controller | Compaction/stats/retention with external-reader and stream-lag safeguards | Planned |
 | Quality and observability | Rules + lineage + telemetry | Blocking checks before publish, quarantine, freshness and actionable errors | Planned |
 
@@ -82,9 +82,9 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 | Identity and group lifecycle | OIDC/SCIM + service-principal administration | Join/change/leave propagation, group mapping, automation identities, bounded revocation and ownership transfer | Planned |
 | Row/column policies | Catalog + engine enforcement | Equivalent enforcement across governed SQL/notebook/AI/result/export paths; deny restricted users raw-storage bypass; separately document privileged engineering access | Local Trino read-only/row-filter/mask enforcement and policy-version result revocation tested; cross-engine/cloud enforcement remains a critical gate |
 | Classification and policy UI | Product metadata and policy adapter | Versioned changes, effective-policy explanation and enforcement acknowledgement | Planned |
-| Installation/adoption | Helm + preflight/dependency planner | Exact version/API/owner detection, canary, no silent adoption/CRD upgrades | Foundation |
-| Self-contained distribution | Managed qualified dependencies | Complete reproducible installation including optional self-hosted AI profile | Planned; chart foundation |
-| Existing-service integration | Adapter contracts | Permission/capability verification and explicit unsupported-mode reasons | Planning foundation |
+| Installation/adoption | Helm + read-only preflight/dependency planner | Exact version/API/owner detection, canary, no silent adoption/CRD upgrades | Rendered-chart preflight implemented with explicit context, ownership/CRD/operator checks, credential-key references and bounded diagnostics; 38 fixture/native Helm checks pass. Live enforcement, canary, complete installation and upgrades remain unqualified |
+| Self-contained distribution | Managed qualified dependencies | Complete reproducible installation including optional self-hosted AI profile | Individual pinned Trino, Polaris and Airflow profiles exist; complete reproducible installation and recovery remain unqualified |
+| Existing-service integration | Adapter contracts | Permission/capability verification and explicit unsupported-mode reasons | Explicit Spark/Trino/Polaris/provider/Airflow bindings and read-only prerequisite inventory implemented; existing services retain ownership. Complete supported-version and production integration qualification remain open |
 | Secrets/identity federation | Cloud stores/ESO/OpenBao + OIDC/WIF | Rotation, scoped mounts, secret references, no credentials in UI/logs | Configuration foundation |
 | Isolation and quotas | Kubernetes RBAC/admission/network policies | Driver cannot choose another SA/secret; quota and workload escape tests | Explicit compute profile with local admission/RBAC/network probes; cloud and malicious-code isolation qualification pending |
 | Audit and diagnostics | Product events + OTel | Actor/execution identity correlation, safe logs, access control, support bundle | Planned |
@@ -98,7 +98,7 @@ The selected first customer workflow is **ingestion → Spark → governed SQL �
 
 ## Adoption, economics and product operations
 
-These capabilities turn backend integration into a product teams can adopt and operate. They are planned work; a successful foundation CI run does not establish them.
+These capabilities turn backend integration into a product teams can adopt and operate. Their production acceptance remains open; a successful foundation CI run does not establish it.
 
 | Capability | Foundation/component | Required acceptance evidence | Initial track |
 |---|---|---|---|
@@ -107,9 +107,9 @@ These capabilities turn backend integration into a product teams can adopt and o
 | SQL workload management | Engine admission + product compute policies | Queue/isolation behavior, competing batch/interactive workloads, cold starts, bounded capacity and idle shutdown | Planned |
 | Cost attribution and budgets | Usage ledger + cloud billing/resource measurements | Team/workload/attempt allocation including idle/shared costs; budget actions, retries and total-cost baseline | Planned |
 | Integrated runtime releases | Release bill of materials + OCI/chart registry | Signed immutable artifacts, dependency matrix, SBOM/licenses, vulnerability handling, supported upgrade and deprecation policy | Planned |
-| Qualification evidence | Versioned fixture/correctness/failure benchmark suites | Per-release/profile artifacts for correctness, security, recovery, capacity and known limitations; failing gates block promotion | Planned |
+| Qualification evidence | Versioned fixture/correctness/failure benchmark suites | Per-release/profile artifacts for correctness, security, recovery, capacity and known limitations; failing gates block promotion | Local database, native Spark/Delta/Trino/Polaris/Airflow, browser and configuration evidence recorded by boundary; full supported-profile cloud, recovery and capacity qualification remains open |
 | Supportability | Health/run timelines + safe diagnostic bundle + runbooks | An operator can identify and recover a deliberate failure without leaked credentials/customer data; explicit escalation and ownership | Planned |
-| Guided onboarding and usability | Installation wizard/preflight + worked examples | New-user completion, time to first governed result, actionable failed prerequisites and second-team onboarding | Planned |
+| Guided onboarding and usability | Installation wizard/preflight + worked examples | New-user completion, time to first governed result, actionable failed prerequisites and second-team onboarding | Read-only CLI preflight and integrated workflow views implemented; installation wizard, complete managed deployment and measured onboarding acceptance remain planned |
 
 ## Sequenced delivery, full scope retained
 

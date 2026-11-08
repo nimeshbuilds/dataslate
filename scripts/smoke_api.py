@@ -41,6 +41,12 @@ expect_error(501, lambda: client.create_table_publication(workspace_id,"run-miss
 expect_error(404, lambda: client.ingestion_outcome(workspace_id,"run-missing"))
 expect_error(404, lambda: client.table_publication(workspace_id,"pub-missing"))
 expect_error(404, lambda: client.published_table(workspace_id,"unconfigured"))
+assert client.workflow_bindings(workspace_id) == {"items": []}
+assert client.workflow_runs(workspace_id) == {"items": []}
+expect_error(501, lambda: client.create_workflow_run(workspace_id,"unconfigured",dag_id="orders_daily",dag_version=1,bundle_version="a"*40,policy_version="v1",idempotency_key="smoke-workflow"))
+expect_error(403, lambda: client.workflow_definition(workspace_id,"unconfigured"))
+expect_error(403, lambda: client.workflow_history(workspace_id,"unconfigured"))
+expect_error(404, lambda: client.workflow_run(workspace_id,"wfr-missing"))
 assert client.catalog_bindings(workspace_id) == {"items": []}
 expect_error(403, lambda: client.verify_catalog(workspace_id,"unconfigured"))
 expect_error(403, lambda: client.catalog_table(workspace_id,"unconfigured",["analytics"],"orders"))
@@ -112,4 +118,4 @@ for operator, group in (("apache", "spark.apache.org/v1"), ("kubeflow", "sparkop
     result = client.spark_preview(workspace_id, {**request, "operator": operator})
     assert result["submitted"] is False
     assert result["manifest"]["apiVersion"] == group
-print(json.dumps({"result": "passed", "checks": ["API/SDK contract", "disabled execution and owner-scoped routes", "unconfigured SQL denies submission", "unconfigured publication exposes no output or mutation", "unconfigured catalog denies metadata", "unconfigured search denies indexing and transfer", "unconfigured Sylon denies provider use", "private memory denies missing provenance and unconfigured recall", "notebook save/reopen", "revision conflict", "cross-workspace lookup", "pipeline lifecycle and revision fencing", "broader module inventory", "dependency preview", "Apache and Kubeflow manifests"], "liveEngineExecution": False}))
+print(json.dumps({"result": "passed", "checks": ["API/SDK contract", "disabled execution and owner-scoped routes", "unconfigured SQL denies submission", "unconfigured publication exposes no output or mutation", "unconfigured catalog denies metadata", "unconfigured workflow denies scheduling and metadata", "unconfigured search denies indexing and transfer", "unconfigured Sylon denies provider use", "private memory denies missing provenance and unconfigured recall", "notebook save/reopen", "revision conflict", "cross-workspace lookup", "pipeline lifecycle and revision fencing", "broader module inventory", "dependency preview", "Apache and Kubeflow manifests"], "liveEngineExecution": False}))

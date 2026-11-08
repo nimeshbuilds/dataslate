@@ -1,0 +1,33 @@
+# Example overlay only. Replace identities, DAG/bundle versions, endpoint, Secret references and network range.
+workflow:
+  enabled: true
+  bindings:
+  - id: orders
+    workspaceId: default
+    name: Orders daily
+    policyVersion: v1
+    endpoint: https://airflow.example.com:8443
+    credentialsId: orders
+    dagId: orders_daily
+    dagVersion: 3
+    bundleVersion: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    airflowVersion: 3.4.0
+    metadataAccessAccepted: true
+    maxRunSeconds: 3600
+    allowedSubjects:
+    - issuer: https://identity.example.com/realms/dataslate
+      subject: engineer-123
+  credentials:
+  - id: orders
+    readTokenSecret:
+      name: airflow-reader
+      key: token
+    triggerTokenSecret:
+      name: airflow-trigger
+      key: token
+    caSecret:
+      name: airflow-ca
+      key: ca.crt
+  engineEgress:
+  - cidr: 10.30.0.14/32
+    port: 8443

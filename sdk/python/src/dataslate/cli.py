@@ -22,6 +22,7 @@ def parser():
     result = argparse.ArgumentParser(prog="dataslate", description="DataSlate control-plane CLI")
     result.add_argument("--url", default=os.environ.get("DATASLATE_API_URL", "http://127.0.0.1:8080"))
     result.add_argument("--timeout", type=float, default=30)
+    result.add_argument("--ca-file", default=os.environ.get("DATASLATE_CA_FILE"), help="Additional trusted CA certificate file; TLS and host verification remain required")
     commands = result.add_subparsers(dest="command", required=True)
     commands.add_parser("status")
     commands.add_parser("modules")
@@ -44,6 +45,23 @@ def parser():
     preview = spark.add_parser("preview")
     preview.add_argument("--workspace", required=True)
     preview.add_argument("--file", required=True)
+    workflows = commands.add_parser("workflow", help="Pinned Airflow runs and observed schedules").add_subparsers(dest="action", required=True)
+    for action in ("bindings", "definition", "history", "list", "trigger", "get", "watch"):
+        command = workflows.add_parser(action)
+        command.add_argument("--workspace", required=True)
+        if action in {"definition", "history", "trigger"}:
+            command.add_argument("--binding", required=True)
+        if action == "trigger":
+            command.add_argument("--idempotency-key", required=True)
+            command.add_argument("--dag", required=True, help="Exact reviewed DAG ID")
+            command.add_argument("--dag-version", type=int, required=True)
+            command.add_argument("--bundle-version", required=True)
+            command.add_argument("--policy-version", required=True)
+        if action in {"get", "watch"}:
+            command.add_argument("--id", required=True)
+        if action == "watch":
+            command.add_argument("--interval", type=float, default=2)
+            command.add_argument("--max-wait", type=float, default=300)
     pipelines = commands.add_parser("pipeline", help="Versioned incremental file-to-Delta ingestion").add_subparsers(dest="action", required=True)
     for action in ("list", "get", "create", "update", "delete"):
         command = pipelines.add_parser(action)
@@ -180,7 +198,7 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
-        client = Client(args.url, token=os.environ.get("DATASLATE_API_TOKEN"), timeout=args.timeout)
+        client = Client(args.url, token=os.environ.get("DATASLATE_API_TOKEN"), timeout=args.timeout, ca_file=args.ca_file)
         if args.command == "status":
             output = client.status()
         elif args.command == "modules":
@@ -209,6 +227,21 @@ def main(argv=None):
                 output = client.update_ingestion_pipeline(args.workspace, args.id, _file(args.file))
             else:
                 output = client.delete_ingestion_pipeline(args.workspace, args.id, args.revision)
+        elif args.command == "workflow":
+            if args.action == "watch":
+                for state in client.watch_workflow_run(args.workspace, args.id, interval=args.interval, max_wait=args.max_wait):
+                    print(json.dumps(state, ensure_ascii=False), flush=True)
+                return 0 if state["state"] == "succeeded" else 4 if state["state"] == "unknown" else 3
+            if args.action == "trigger":
+                output = client.create_workflow_run(args.workspace, args.binding, dag_id=args.dag,
+                                                    dag_version=args.dag_version, bundle_version=args.bundle_version,
+                                                    policy_version=args.policy_version, idempotency_key=args.idempotency_key)
+            elif args.action == "get":
+                output = client.workflow_run(args.workspace, args.id)
+            elif args.action in {"definition", "history"}:
+                output = (client.workflow_definition if args.action == "definition" else client.workflow_history)(args.workspace, args.binding)
+            else:
+                output = (client.workflow_bindings if args.action == "bindings" else client.workflow_runs)(args.workspace)
         elif args.command == "publication":
             if args.action == "watch":
                 for state in client.watch_table_publication(args.workspace, args.id, interval=args.interval, max_wait=args.max_wait):

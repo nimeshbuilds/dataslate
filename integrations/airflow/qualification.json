@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "checkedOn": "2026-11-08",
+  "profile": {
+    "python": "3.12.14",
+    "apache-airflow": "3.4.0",
+    "apache-airflow-task-sdk": "1.4.0",
+    "dataslate-airflow-provider": "0.1.0a1"
+  },
+  "result": "passed",
+  "tests": 23,
+  "checks": [
+    "same-key submission recovery and saved resource selection",
+    "verified operation/receipt/source cleanup and unknown handling",
+    "real HTTPS OAuth exchange and private CA verification",
+    "hostname mismatch and redirect denial",
+    "rotated bearer credentials",
+    "actual Airflow operator/sensor/XCom handling",
+    "installed provider and hook discovery",
+    "six-task example upstream serialization schema"
+  ],
+  "limits": [
+    "Operation outcomes use controlled client fixtures, not live Spark/Trino.",
+    "XCom storage is a local fixture; actual Airflow formatting and resolution are exercised.",
+    "No complete scheduled cloud/Kubernetes provider pipeline was qualified."
+  ],
+  "sources": {
+    "integrations/airflow/src/dataslate_airflow/__init__.py": "40d7898a4d6c5ede01de605ed6c0b44a1ef8799b3d8ffa5754978f6e7057e9d5",
+    "integrations/airflow/src/dataslate_airflow/core.py": "108d1ea684fefd98a24ede31a55e6022ae21dafad6aa5d4f888dcf54fe757c08",
+    "integrations/airflow/src/dataslate_airflow/hooks.py": "1cf0f8e9ea7164eacf42634bcc42ce9ff7c048db40fdda45a4c8745532dffb42",
+    "integrations/airflow/src/dataslate_airflow/operators.py": "407e68092c3caaf60d30d8a37d6cfc52ad82cd1e0d1182973e248bee5d23a3b5",
+    "integrations/airflow/tests/test_packaging.py": "ffad2c958d5af56a031540d1576fdcaacf995ea828c89d8b3feed0cdc942dc17",
+    "integrations/airflow/tests/test_provider.py": "ba33570a963fc7dbf5c0a87b6454a234fc2b929f458984d6cab1c6ed29824807",
+    "integrations/airflow/pyproject.toml": "a7d6ca6f7ecb9ae3e53126ee72bf69843a56a24a64ac1862b6bbfb6ae5731cfd",
+    "integrations/airflow/constraints-3.12.txt": "3cecb4fe4a11d69bd772aef18434825bbed9b344703302ca0a55d50e30a33eda",
+    "sdk/python/src/dataslate/client.py": "61ca4811c1305f778b1e9af31f7cf2bc529a9799ed17511a277b9a127a19af11",
+    "sdk/python/src/dataslate/__init__.py": "dc61d5a60fe8ee79c22293c399e9f1fc470e8d3206d2ef530b88810c5f8cf0f5",
+    "sdk/python/src/dataslate/cli.py": "7a5606a1669ca21c99e24810f8df7933f3166c6d4e92409bfb126ffedf6af76b"
+  }
+}

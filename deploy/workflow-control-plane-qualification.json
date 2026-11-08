@@ -1,0 +1,72 @@
+{
+  "scope": "native production controller processes with owned loopback PostgreSQL",
+  "controllers": [
+    {
+      "controller": "sql",
+      "sha256": "cd97109c59429f6632416177f96d2282b9a3533320eded86f8a7c3a7f9be4d90",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "search",
+      "sha256": "afe069ee72abeb19afab79058d39506da76494712327f9f862e4eca3b229d8fb",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "sylon",
+      "sha256": "2e5c79bddf4f8f21c88877621487a61a55549999b63bb3a2a0efaa2168e0ccd9",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "publication",
+      "sha256": "ef4c8d36c6675cd2cc936b1c4a084378e14ddcae0c2efe510bd4a903d09905b6",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "workflow",
+      "sha256": "25bf56bbfa2ba5bc312415e2c183d003a4c30aeda07429414054c8479135dd43",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    }
+  ],
+  "schemaVersion": 12,
+  "runtimeDDLAndMigrationWritesDenied": true,
+  "notTested": [
+    "browser OIDC login",
+    "cloud services",
+    "complete Kubernetes install",
+    "HA/restore",
+    "live jobs"
+  ],
+  "cleanup": {
+    "checkedAt": "2026-11-08T15:09:26.940786+00:00",
+    "ownedPostgresStopped": true,
+    "ownedDataAndTLSCredentialsRemoved": true,
+    "privateFixtureFilesRemoved": true,
+    "ownedExtensionFilesRemoved": 3,
+    "installedToolingPreserved": true
+  }
+}

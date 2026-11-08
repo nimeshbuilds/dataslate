@@ -1,0 +1,7 @@
+{
+  "source": "https://raw.githubusercontent.com/apache/airflow/constraints-3.4.0/constraints-3.12.txt",
+  "sha256": "3cecb4fe4a11d69bd772aef18434825bbed9b344703302ca0a55d50e30a33eda",
+  "airflow": "3.4.0",
+  "python": "3.12",
+  "scope": "Local and CI provider qualification; not a complete Kubernetes deployment release"
+}

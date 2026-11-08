@@ -9,6 +9,8 @@ import (
 )
 
 type Config struct {
+	WorkflowBindingsFile                                    string
+	WorkflowBindings                                        []WorkflowBinding
 	PublicationBindingsFile                                 string
 	PublicationBindings                                     []PublicationBinding
 	SylonBindingsFile                                       string
@@ -26,7 +28,7 @@ type Config struct {
 }
 
 func LoadConfig() (Config, error) {
-	c := Config{PublicationBindingsFile: os.Getenv("DATASLATE_PUBLICATION_BINDINGS_FILE"), SylonBindingsFile: os.Getenv("DATASLATE_SYLON_BINDINGS_FILE"), SearchBindingsFile: os.Getenv("DATASLATE_SEARCH_BINDINGS_FILE"), CatalogBindingsFile: os.Getenv("DATASLATE_CATALOG_BINDINGS_FILE"), SQLBindingsFile: os.Getenv("DATASLATE_SQL_BINDINGS_FILE"), Addr: os.Getenv("DATASLATE_ADDR"), AuthMode: os.Getenv("DATASLATE_AUTH_MODE"), DatabaseURL: os.Getenv("DATASLATE_DATABASE_URL"), Issuer: os.Getenv("DATASLATE_OIDC_ISSUER"), Audience: os.Getenv("DATASLATE_OIDC_AUDIENCE"), ClientID: os.Getenv("DATASLATE_OIDC_CLIENT_ID"), Scopes: strings.Fields(os.Getenv("DATASLATE_OIDC_SCOPES")), ExecutionBindingsFile: os.Getenv("DATASLATE_EXECUTION_BINDINGS_FILE")}
+	c := Config{WorkflowBindingsFile: os.Getenv("DATASLATE_WORKFLOW_BINDINGS_FILE"), PublicationBindingsFile: os.Getenv("DATASLATE_PUBLICATION_BINDINGS_FILE"), SylonBindingsFile: os.Getenv("DATASLATE_SYLON_BINDINGS_FILE"), SearchBindingsFile: os.Getenv("DATASLATE_SEARCH_BINDINGS_FILE"), CatalogBindingsFile: os.Getenv("DATASLATE_CATALOG_BINDINGS_FILE"), SQLBindingsFile: os.Getenv("DATASLATE_SQL_BINDINGS_FILE"), Addr: os.Getenv("DATASLATE_ADDR"), AuthMode: os.Getenv("DATASLATE_AUTH_MODE"), DatabaseURL: os.Getenv("DATASLATE_DATABASE_URL"), Issuer: os.Getenv("DATASLATE_OIDC_ISSUER"), Audience: os.Getenv("DATASLATE_OIDC_AUDIENCE"), ClientID: os.Getenv("DATASLATE_OIDC_CLIENT_ID"), Scopes: strings.Fields(os.Getenv("DATASLATE_OIDC_SCOPES")), ExecutionBindingsFile: os.Getenv("DATASLATE_EXECUTION_BINDINGS_FILE")}
 	if c.Addr == "" {
 		c.Addr = "127.0.0.1:8080"
 	}
@@ -96,6 +98,17 @@ func LoadConfig() (Config, error) {
 		}
 	}
 	c.SylonBindings = sylonBindings
+	c.WorkflowBindings, err = LoadWorkflowBindings(c.WorkflowBindingsFile)
+	if err != nil {
+		return c, err
+	}
+	for _, b := range c.WorkflowBindings {
+		for _, subject := range b.AllowedSubjects {
+			if subject.Issuer != issuer {
+				return c, errors.New("workflow subject issuer must match authentication issuer")
+			}
+		}
+	}
 	c.PublicationBindings, err = LoadPublicationBindings(c.PublicationBindingsFile)
 	if err != nil {
 		return c, err

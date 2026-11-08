@@ -1,0 +1,27 @@
+{
+  "name": "dataslate-airflow",
+  "namespace": "dataslate-orchestration",
+  "image": "registry.example.com/dataslate/airflow@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "serviceAccount": "dataslate-airflow-unprivileged",
+  "databaseSecret": "airflow-metadata-database",
+  "tlsSecret": "airflow-api-tls",
+  "trustSecret": "airflow-trust",
+  "fernetSecret": "airflow-fernet",
+  "apiSecret": "airflow-api-session",
+  "jwtSecret": "airflow-jwt-signing",
+  "gitConnectionSecret": "airflow-git-connection",
+  "taskConnectionSecret": "airflow-dataslate-task-connection",
+  "logsClaim": "airflow-logs-rwx",
+  "parallelism": 4,
+  "git": {
+    "url": "https://github.com/example/reviewed-orchestration.git",
+    "commit": "1111111111111111111111111111111111111111",
+    "subdir": "dags"
+  },
+  "clientNamespace": "dataslate-system",
+  "clientLabels": {"app.kubernetes.io/part-of": "dataslate"},
+  "egress": [
+    {"cidr": "10.20.30.0/24", "port": 5432},
+    {"cidr": "10.20.40.0/24", "port": 443}
+  ]
+}

@@ -194,3 +194,20 @@ publication:
     resources:
       requests: {cpu: 100m, memory: 128Mi}
       limits: {cpu: "1", memory: 512Mi}
+
+# Airflow owns scheduling. Existing DAGs and credentials remain externally managed.
+workflow:
+  enabled: false
+  bindings: []
+  credentials: []
+  engineEgress: []
+  controller:
+    replicas: 2
+    image:
+      repository: dataslate-workflow-controller
+      tag: 0.1.0-foundation
+      digest: ""
+      pullPolicy: IfNotPresent
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 512Mi}
