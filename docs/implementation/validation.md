@@ -1,6 +1,18 @@
 # Foundation validation
 
-Snapshot: September 25, 2026. This records implementation evidence, not production certification. The local development application uses explicit loopback authentication and memory storage. The production code path requires OIDC and PostgreSQL.
+This records implementation evidence, not production certification. The local development application uses explicit loopback authentication and memory storage. The production code path requires OIDC and PostgreSQL.
+
+## Publication validation — November 7, 2026
+
+- [GitHub foundation CI](https://github.com/nimeshbuilds/dataslate/actions/runs/42430328346) passed all four jobs for implementation revision `6ea8cb2`: API tests/vet with isolated PostgreSQL and API image build; SDK tests and real API smoke; TypeScript/Vite build, browser tests and workspace image build; Helm/bootstrap validation. Image builds do not qualify deployed container behavior or a live Kubernetes installation.
+- [GitHub Pages deployment](https://github.com/nimeshbuilds/dataslate/actions/runs/42430328285) passed. The public HTML, CSS, JavaScript, favicon and social image were fetched over HTTPS and matched repository bytes.
+- The product site passed browser checks at 1440, 390 and 320 pixels: navigation, keyboard tabs, clipboard, internal anchors, image alternatives and overflow. Desktop/mobile visuals were inspected. Its product illustrations are labeled concepts with sample data.
+- A clean temporary installation of the workspace dependencies passed its production build. Bundled font copyright/license files were verified unchanged in the build output.
+- The initial committed history was checked for secret patterns, private absolute paths and generated dependencies before publication. No such publication blockers were found. This is a targeted review, not a comprehensive security audit.
+
+## Original local snapshot — September 25, 2026
+
+The following records the earlier local validation. Its pending remote-CI items were subsequently exercised as described above; live cloud and production qualification remain pending.
 
 ## Checks completed
 
@@ -18,7 +30,7 @@ Snapshot: September 25, 2026. This records implementation evidence, not producti
 | Helm | External profile renders 12 resources; managed CNPG profile renders 13. Eighteen invalid configurations are rejected. Custom HTTPS/database-port policy rendering passes |
 | Upstream bootstrap | Checksum-pinned Apache Spark and CNPG charts lint/render successfully offline after download |
 | Dependency review | Frontend npm audit reported zero known vulnerabilities for the installed lockfile at this snapshot; this is not a comprehensive security assessment |
-| CI configuration | Workflow added for Go/PostgreSQL, Python/API smoke, browser builds/tests, image builds and Helm/bootstrap checks. No remote CI run has occurred |
+| CI configuration | Workflow added for Go/PostgreSQL, Python/API smoke, browser builds/tests, image builds and Helm/bootstrap checks. No remote CI run had occurred at this September snapshot |
 
 Reproduce the source checks from the repository root:
 
@@ -37,7 +49,7 @@ Use Python 3.11+. Browser tests start their own API on 8080 and Vite on 5173 and
 
 ## Not executed locally
 
-- Real PostgreSQL integration: the gated `DATASLATE_TEST_DATABASE_URL` test was skipped locally because no database is available. The workflow supplies an isolated test database, but that workflow has not run remotely.
+- Real PostgreSQL integration: the gated `DATASLATE_TEST_DATABASE_URL` test was skipped locally because no database was available. The workflow subsequently supplied an isolated test database in the November CI run above.
 - Container builds/startup: no local Docker daemon is available. Dockerfiles and nginx/Helm contracts were reviewed; CI image-build jobs are configured.
 - Live OIDC browser login, provider-specific claim mapping, session revocation and directory/group lifecycle.
 - EKS installation, internal ALB, actual network-policy enforcement, S3 credentials, Spark execution and cloud table commits.
