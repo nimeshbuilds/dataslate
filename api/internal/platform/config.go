@@ -9,6 +9,8 @@ import (
 )
 
 type Config struct {
+	PublicationBindingsFile                                 string
+	PublicationBindings                                     []PublicationBinding
 	SylonBindingsFile                                       string
 	SylonBindings                                           []SylonBinding
 	SearchBindingsFile                                      string
@@ -24,7 +26,7 @@ type Config struct {
 }
 
 func LoadConfig() (Config, error) {
-	c := Config{SylonBindingsFile: os.Getenv("DATASLATE_SYLON_BINDINGS_FILE"), SearchBindingsFile: os.Getenv("DATASLATE_SEARCH_BINDINGS_FILE"), CatalogBindingsFile: os.Getenv("DATASLATE_CATALOG_BINDINGS_FILE"), SQLBindingsFile: os.Getenv("DATASLATE_SQL_BINDINGS_FILE"), Addr: os.Getenv("DATASLATE_ADDR"), AuthMode: os.Getenv("DATASLATE_AUTH_MODE"), DatabaseURL: os.Getenv("DATASLATE_DATABASE_URL"), Issuer: os.Getenv("DATASLATE_OIDC_ISSUER"), Audience: os.Getenv("DATASLATE_OIDC_AUDIENCE"), ClientID: os.Getenv("DATASLATE_OIDC_CLIENT_ID"), Scopes: strings.Fields(os.Getenv("DATASLATE_OIDC_SCOPES")), ExecutionBindingsFile: os.Getenv("DATASLATE_EXECUTION_BINDINGS_FILE")}
+	c := Config{PublicationBindingsFile: os.Getenv("DATASLATE_PUBLICATION_BINDINGS_FILE"), SylonBindingsFile: os.Getenv("DATASLATE_SYLON_BINDINGS_FILE"), SearchBindingsFile: os.Getenv("DATASLATE_SEARCH_BINDINGS_FILE"), CatalogBindingsFile: os.Getenv("DATASLATE_CATALOG_BINDINGS_FILE"), SQLBindingsFile: os.Getenv("DATASLATE_SQL_BINDINGS_FILE"), Addr: os.Getenv("DATASLATE_ADDR"), AuthMode: os.Getenv("DATASLATE_AUTH_MODE"), DatabaseURL: os.Getenv("DATASLATE_DATABASE_URL"), Issuer: os.Getenv("DATASLATE_OIDC_ISSUER"), Audience: os.Getenv("DATASLATE_OIDC_AUDIENCE"), ClientID: os.Getenv("DATASLATE_OIDC_CLIENT_ID"), Scopes: strings.Fields(os.Getenv("DATASLATE_OIDC_SCOPES")), ExecutionBindingsFile: os.Getenv("DATASLATE_EXECUTION_BINDINGS_FILE")}
 	if c.Addr == "" {
 		c.Addr = "127.0.0.1:8080"
 	}
@@ -94,6 +96,28 @@ func LoadConfig() (Config, error) {
 		}
 	}
 	c.SylonBindings = sylonBindings
+	c.PublicationBindings, err = LoadPublicationBindings(c.PublicationBindingsFile)
+	if err != nil {
+		return c, err
+	}
+	for _, b := range c.PublicationBindings {
+		if err = validatePublicationReaders(b, c.SQLBindings); err != nil {
+			return c, err
+		}
+		if err = validatePublicationExecution(b, c.ExecutionBindings); err != nil {
+			return c, err
+		}
+		for _, s := range b.AllowedPublishers {
+			if s.Issuer != issuer {
+				return c, errors.New("publication subject issuer must match authentication issuer")
+			}
+		}
+		for _, s := range b.Readers {
+			if s.Issuer != issuer {
+				return c, errors.New("publication reader issuer must match authentication issuer")
+			}
+		}
+	}
 	return c, nil
 }
 func (c Config) Validate() error {

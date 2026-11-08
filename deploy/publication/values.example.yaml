@@ -1,0 +1,93 @@
+# Example values only. Replace every example identity, endpoint, CIDR, Secret reference,
+# pipeline ID and placeholder runtime digest with your reviewed installation values.
+# Combine with your base OIDC/PostgreSQL/ingress profile. No secrets belong here.
+# The saved pipeline must use exactly the configured destination and execution binding.
+execution:
+  enabled: true
+  operatorAccepted: true
+  runtimePolicyAccepted: true
+  namespaces:
+  - dataslate-compute
+  kubernetesEgressCidrs:
+  - 10.0.0.1/32
+  bindings:
+  - id: ingest
+    workspaceId: default
+    name: Orders ingestion
+    operator: apache
+    image: registry.example.com/ingestion@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    namespace: dataslate-compute
+    serviceAccount: engineering-driver
+    executorInstances: 1
+    executionKind: file-ingestion-batch
+    allowedSubjects:
+    - issuer: https://identity.example.com/realms/dataslate
+      subject: engineer-123
+    ingestionStorage:
+      readPrefixes:
+      - s3://example-lake/incoming/
+      writePrefixes:
+      - s3://example-lake/tables/
+      - s3://example-lake/checkpoints/
+sql:
+  enabled: true
+  bindings:
+  - id: read-orders
+    workspaceId: default
+    name: Governed orders
+    engine: trino
+    endpoint: https://trino.example.com:8443
+    catalog: lake
+    schema: analytics
+    policyVersion: v1
+    maxRunSeconds: 300
+    readOnlyPolicyAccepted: true
+    credentialsId: reader
+    allowedSubjects:
+    - issuer: https://identity.example.com/realms/dataslate
+      subject: engineer-123
+      engineUser: engineer_123
+  credentials:
+  - id: reader
+    tokenSecret:
+      name: trino-reader
+      key: token
+  engineEgress:
+  - cidr: 10.30.0.12/32
+    port: 8443
+publication:
+  enabled: true
+  bindings:
+  - id: publish-orders
+    workspaceId: default
+    name: Orders
+    policyVersion: v1
+    pipelineId: pipeline-orders
+    executionBindingId: ingest
+    destinationUri: s3://example-lake/tables/orders/
+    endpoint: https://trino.example.com:8443
+    catalog: lake
+    schema: analytics
+    table: orders
+    maxRunSeconds: 60
+    credentialsId: publisher
+    engineUser: dataslate-publisher
+    registrationPolicyAccepted: true
+    allowedPublishers:
+    - issuer: https://identity.example.com/realms/dataslate
+      subject: engineer-123
+    readers:
+    - issuer: https://identity.example.com/realms/dataslate
+      subject: engineer-123
+      sqlBindingId: read-orders
+  credentials:
+  - id: publisher
+    tokenSecret:
+      name: trino-publisher
+      key: token
+    caSecret:
+      name: trino-ca
+      key: ca.crt
+  engineEgress:
+  - cidr: 10.30.0.12/32
+    port: 8443

@@ -39,7 +39,7 @@ func (s *PostgresStore) CreateRun(ctx context.Context, r Run, key, fingerprint s
 		return Run{}, false, err
 	}
 	var active int
-	if err = tx.QueryRow(ctx, `SELECT count(*) FROM dataslate_runs WHERE workspace_id=$1 AND (state NOT IN ('succeeded','failed','cancelled') OR document->'sourceArtifact'->>'state' IN ('pending','ready','cleanup_pending') OR (document ? 'ingestion' AND COALESCE((document->>'writerReleased')::boolean,false)=false))`, ws).Scan(&active); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT count(*) FROM dataslate_runs WHERE workspace_id=$1 AND (state NOT IN ('succeeded','failed','cancelled') OR document->'ingestionOutcome'->>'state'='pending' OR document->'sourceArtifact'->>'state' IN ('pending','ready','cleanup_pending') OR (document ? 'ingestion' AND COALESCE((document->>'writerReleased')::boolean,false)=false))`, ws).Scan(&active); err != nil {
 		return Run{}, false, err
 	}
 	if active >= MaxActiveWorkspaceRuns {
@@ -137,7 +137,7 @@ func (s *PostgresStore) AcquireRun(ctx context.Context, owner string, ttl time.D
 	var r Run
 	lease := RunLease{Owner: owner}
 	var source *RunSource
-	err := s.pool.QueryRow(ctx, `WITH candidate AS (SELECT id FROM dataslate_runs WHERE (state NOT IN ('succeeded','failed','cancelled') OR document->'sourceArtifact'->>'state' IN ('pending','ready','cleanup_pending') OR (document ? 'ingestion' AND COALESCE((document->>'writerReleased')::boolean,false)=false)) AND next_reconcile_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<=clock_timestamp()) ORDER BY next_reconcile_at,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE dataslate_runs r SET lease_owner=$1,lease_fence=r.lease_fence+1,lease_until=clock_timestamp()+($2 * interval '1 millisecond') FROM candidate WHERE r.id=candidate.id RETURNING r.id,r.document,r.lease_fence,(SELECT document FROM dataslate_run_sources WHERE run_id=r.id)`, owner, ttl.Milliseconds()).Scan(&lease.RunID, &r, &lease.Fence, &source)
+	err := s.pool.QueryRow(ctx, `WITH candidate AS (SELECT id FROM dataslate_runs WHERE (state NOT IN ('succeeded','failed','cancelled') OR document->'ingestionOutcome'->>'state'='pending' OR document->'sourceArtifact'->>'state' IN ('pending','ready','cleanup_pending') OR (document ? 'ingestion' AND COALESCE((document->>'writerReleased')::boolean,false)=false)) AND next_reconcile_at<=clock_timestamp() AND (lease_until IS NULL OR lease_until<=clock_timestamp()) ORDER BY next_reconcile_at,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE dataslate_runs r SET lease_owner=$1,lease_fence=r.lease_fence+1,lease_until=clock_timestamp()+($2 * interval '1 millisecond') FROM candidate WHERE r.id=candidate.id RETURNING r.id,r.document,r.lease_fence,(SELECT document FROM dataslate_run_sources WHERE run_id=r.id)`, owner, ttl.Milliseconds()).Scan(&lease.RunID, &r, &lease.Fence, &source)
 	r.Source = source
 	return r, lease, storeError(err)
 }
@@ -160,6 +160,11 @@ func (s *PostgresStore) AdvanceRun(ctx context.Context, lease RunLease, u RunUpd
 	if err != nil {
 		return Run{}, err
 	}
+	if u.IngestionOutcome != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO dataslate_ingestion_outcomes(run_id,workspace_id,document) VALUES($1,$2,$3)`, r.ID, r.WorkspaceID, u.IngestionOutcome); err != nil {
+			return Run{}, err
+		}
+	}
 	var tag pgconn.CommandTag
 	if u.RetainLease {
 		tag, err = tx.Exec(ctx, `UPDATE dataslate_runs SET document=$2,state=$3 WHERE id=$1 AND lease_owner=$4 AND lease_fence=$5 AND lease_until>clock_timestamp()`, r.ID, r, r.State, lease.Owner, lease.Fence)
@@ -172,6 +177,7 @@ func (s *PostgresStore) AdvanceRun(ctx context.Context, lease RunLease, u RunUpd
 	if tag.RowsAffected() != 1 {
 		return Run{}, ErrLeaseLost
 	}
+
 	return r, tx.Commit(ctx)
 }
 
@@ -179,4 +185,24 @@ func (s *PostgresStore) RunSource(ctx context.Context, ws, id string, subject Ex
 	var source RunSource
 	err := s.pool.QueryRow(ctx, `SELECT s.document FROM dataslate_run_sources s JOIN dataslate_runs r ON r.id=s.run_id WHERE r.workspace_id=$1 AND r.id=$2 AND r.issuer=$3 AND r.subject=$4`, ws, id, subject.Issuer, subject.Subject).Scan(&source)
 	return source, storeError(err)
+}
+
+func (s *PostgresStore) IngestionOutcome(ctx context.Context, ws, id string, owner ExecutionSubject) (IngestionOutcome, error) {
+	r, e := s.Run(ctx, ws, id, owner)
+	if e != nil {
+		return IngestionOutcome{}, e
+	}
+	if r.Ingestion == nil {
+		return IngestionOutcome{}, ErrNotFound
+	}
+	var outcome IngestionOutcome
+	e = s.pool.QueryRow(ctx, `SELECT document FROM dataslate_ingestion_outcomes WHERE run_id=$1 AND workspace_id=$2`, id, ws).Scan(&outcome)
+	if errors.Is(e, pgx.ErrNoRows) {
+		state := IngestionOutcomeSummary{State: "unavailable", ReasonCode: "legacy_runtime_contract"}
+		if r.IngestionOutcome != nil {
+			state = *r.IngestionOutcome
+		}
+		return IngestionOutcome{RunID: id, WorkspaceID: ws, IngestionOutcomeSummary: state}, nil
+	}
+	return outcome, e
 }

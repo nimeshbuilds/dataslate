@@ -307,6 +307,99 @@ class Client:
     def sql_bindings(self, workspace_id: str):
         return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sql-bindings")
 
+    def ingestion_outcome(self, workspace_id: str, run_id: str):
+        """Read durable runtime evidence. A succeeded run alone is not a verified table."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/runs/{_segment(run_id)}/ingestion-outcome")
+
+    def publication_bindings(self, workspace_id: str):
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/publication-bindings")
+
+    def table_publications(self, workspace_id: str):
+        """List currently authorized publication operations owned by the caller."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/table-publications")
+
+    @staticmethod
+    def _publication(value, workspace_id, publication_id=None):
+        if (not isinstance(value, dict) or value.get("workspaceId") != workspace_id
+                or not isinstance(value.get("id"), str) or not value["id"]
+                or publication_id is not None and value["id"] != publication_id
+                or not isinstance(value.get("state"), str)
+                or value["state"] not in {"queued", "checking", "registering", "verifying", "published", "failed", "unknown"}
+                or type(value.get("revision")) is not int or value["revision"] < 1
+                or type(value.get("registrationStarted")) is not bool
+                or type(value.get("reconciliationComplete")) is not bool
+                or value["state"] in {"published", "failed"} and not value["reconciliationComplete"]
+                or value["reconciliationComplete"] and value["state"] not in {"published", "failed", "unknown"}
+                or not isinstance(value.get("deltaVersion"), str)
+                or not re.fullmatch(r"0|[1-9][0-9]{0,18}", value["deltaVersion"])
+                or int(value["deltaVersion"]) > 9223372036854775807):
+            raise DataSlateError("invalid_response", "Publication has an invalid identity, state, revision or Delta version")
+        try:
+            _segment(value["id"])
+            _segment(value.get("bindingId"))
+            _segment(value.get("runId"))
+            if value["state"] == "published":
+                if value.get("publishedTableId") != value["bindingId"]:
+                    raise ValueError("wrong published table")
+                _rfc3339(value.get("verifiedAt"))
+        except ValueError:
+            raise DataSlateError("invalid_response", "Publication returned an invalid resource or verification receipt") from None
+        return value
+
+    def create_table_publication(self, workspace_id: str, run_id: str, binding_id: str, *, idempotency_key: str):
+        """Publish one verified output. Persist the exact run/binding/key before sending.
+
+        An uncertain response must be recovered with the same request. This does
+        not resubmit ingestion, retry a registration, or grant table read access.
+        """
+        _segment(run_id)
+        _segment(binding_id)
+        value = self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/table-publications", {
+            "runId": run_id, "bindingId": binding_id, "idempotencyKey": _run_key(idempotency_key)})
+        if not isinstance(value, dict) or type(value.get("replayed")) is not bool:
+            raise DataSlateError("invalid_response", "Publication acceptance is unconfirmed; preserve the original request for recovery")
+        publication = self._publication(value.get("publication"), workspace_id)
+        if publication["runId"] != run_id or publication["bindingId"] != binding_id:
+            raise DataSlateError("invalid_response", "Publication receipt does not match the submitted run and binding")
+        return value
+
+    def table_publication(self, workspace_id: str, publication_id: str):
+        value = self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/table-publications/{_segment(publication_id)}")
+        return self._publication(value, workspace_id, publication_id)
+
+    def published_tables(self, workspace_id: str):
+        """List tables under current reader grants, independently of publisher rights."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/published-tables")
+
+    def published_table(self, workspace_id: str, table_id: str):
+        """Get a latest-table SQL draft. This method neither saves nor executes it."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/published-tables/{_segment(table_id)}")
+
+    def watch_table_publication(self, workspace_id: str, publication_id: str, *, interval: float = 2, max_wait: float = 300):
+        """GET-only observation. Unresolved final registration stops without a retry.
+
+        The controller may subsequently reconcile an unknown registration. Fetch
+        or watch the same operation later; never replace its idempotency key.
+        """
+        if not all(type(v) in (int, float) and math.isfinite(v) and v > 0 for v in (interval, max_wait)):
+            raise ValueError("interval and max_wait must be finite positive seconds")
+        deadline, previous = time.monotonic() + max_wait, None
+        while True:
+            current = self.table_publication(workspace_id, publication_id)
+            if previous is not None and current["revision"] < previous["revision"]:
+                raise DataSlateError("invalid_response", "Publication revision moved backwards")
+            if current != previous:
+                yield current
+                previous = current
+            if current["reconciliationComplete"]:
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DataSlateError("watch_timeout", "Stopped watching; publication may still be active")
+            time.sleep(min(interval, remaining))
+            if time.monotonic() >= deadline:
+                raise DataSlateError("watch_timeout", "Stopped watching; publication may still be active")
+
     def catalog_bindings(self, workspace_id: str):
         return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/catalog-bindings")
 

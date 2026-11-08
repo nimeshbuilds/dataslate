@@ -15,9 +15,24 @@ const logLimit = 64 * 1024
 
 type pod struct {
 	Metadata objectMeta `json:"metadata"`
-	Spec     struct {
+	Status   struct {
+		ContainerStatuses []struct {
+			Name         string `json:"name"`
+			RestartCount int    `json:"restartCount"`
+			State        struct {
+				Terminated *struct {
+					ExitCode int    `json:"exitCode"`
+					Message  string `json:"message"`
+				} `json:"terminated"`
+			} `json:"state"`
+		} `json:"containerStatuses"`
+	} `json:"status"`
+	Spec struct {
 		Containers []struct {
-			Name string `json:"name"`
+			Name                     string `json:"name"`
+			Image                    string `json:"image"`
+			TerminationMessagePath   string `json:"terminationMessagePath"`
+			TerminationMessagePolicy string `json:"terminationMessagePolicy"`
 		} `json:"containers"`
 	} `json:"spec"`
 }

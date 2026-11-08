@@ -1,0 +1,113 @@
+{
+  "date": "2026-11-08",
+  "scope": "Synthetic local append-only file source and shared-volume cross-engine qualification; no AWS resources",
+  "receiptVersion": 2,
+  "profile": {
+    "spark": "4.1.3",
+    "delta": "4.3.1",
+    "hadoop": "3.4.2"
+  },
+  "unitTests": 28,
+  "productionOCI": {
+    "manifestDigest": "sha256:513ddfd1ea5e147fdc7560d0bdceabd44129993ee629e1a158b9c1ab8db3c564",
+    "configDigest": "sha256:25db357d8f651f790214da7e133de1390786be45b6af47d171ab6fab41e9ee3d",
+    "architecture": "linux/arm64",
+    "runtimeSHA256": "1816e48ef485b2ac702a8324e78fa1dd9394fc215750e31afb44dbd1b421a658",
+    "uid": 185,
+    "network": "none",
+    "memoryGiB": 4,
+    "cpus": 2,
+    "shaLockedJarsVerified": 6,
+    "scenarios": 17,
+    "failed": [],
+    "harness": "Only qualification scripts mounted read-only; tested runtime module and jars from exact built production image",
+    "imagePublished": false
+  },
+  "initialAttempt": {
+    "result": "failed",
+    "cause": "owned VM data disk exhausted after pulling images/build cache",
+    "passedScenariosBeforeFailure": 13,
+    "recovery": "pruned only disposable buildkit cache in owned VM; reran all 17 scenarios successfully"
+  },
+  "crossEngine": {
+    "hive": "apache/hive:4.2.1@sha256:b19bb5bd01f233a3f99d941ebf08acaff68c55911dd5fa42ea03928e51860b91",
+    "trino": "trinodb/trino:484@sha256:2704eb53935af5e582d63d6033e9bf99d20c325e9b0e30b1016ef59a4773979f",
+    "metastore": "isolated Hive Thrift with disposable embedded Derby",
+    "storage": "same synthetic read-only /lake mount in Hive and Trino; Spark writes before readers start",
+    "transport": "TLS with private CA and signed JWTs; Trino published only on loopback",
+    "checks": {
+      "register_orders": "20261108_050126_00001_384j7",
+      "register_timestamp_precision": "20261108_050126_00002_384j7",
+      "structuredLocationAndProtocol": true,
+      "expectedVersion": "0",
+      "governedRowsAndMask": [
+        [
+          1,
+          "US",
+          "REDACTED",
+          10.5,
+          true,
+          "2026-11-07"
+        ],
+        [
+          3,
+          "US",
+          "REDACTED",
+          30.25,
+          true,
+          "2026-11-08"
+        ]
+      ],
+      "reader_metadata": "denied",
+      "reader_insert": "denied",
+      "reader_delete": "denied",
+      "reader_drop": "denied",
+      "reader_register": "denied",
+      "ungranted_reader": "denied",
+      "broker_to_publisher": "denied",
+      "publisher_other_target": "denied",
+      "publisher_other_schema": "denied",
+      "publisher_other_procedure": "denied"
+    },
+    "timestampBoundary": {
+      "sparkInput": "2026-11-07T12:00:00.123456Z",
+      "trinoValue": "2026-11-07 12:00:00.123 UTC",
+      "trinoType": "timestamp with time zone",
+      "publicationSupported": false
+    },
+    "nativeGoInspectDelta": "PASS: exact location, retained version, ordered primitive schema, protocol/feature union and wrong-location rejection",
+    "sourceUUID": "runtime-attested only; Trino SQL does not prove native UUID"
+  },
+  "notQualified": [
+    "AWS EKS/S3/Glue or IRSA live access",
+    "Kubernetes SparkApplication v2 termination-message capture end to end",
+    "Production platform publication lifecycle against live engine",
+    "Multi-node throughput, load, failover or disaster recovery",
+    "Azure/GCS ingestion adapters",
+    "Timestamp publication without precision loss"
+  ],
+  "evidenceSHA256": {
+    "runtime-jvm.log": "f9c21156073989900668820f94cd7c35d7eb335bf228b2ee91b5a5a612ef1eb1",
+    "runtime-jvm-final.log": "a69f61b64181f68fa480d0111dadb82b88e09aeb59d3905c9ffb4e7bb9349cea",
+    "write-lake.log": "ab90a58f8211402f8ecefc75495fc7706f216f78dd75ba9906dd8bc9d4d15fa1",
+    "fixture-summary.json": "e5c117c5049f27ed32684a5b91355a77bb8d416e3e16c7f85e36fcc3321f7f8d",
+    "lake-sql.json": "befef38b2ae1290719e3ed46725da12a49f71619dd8571edc808be8d881ad6f7",
+    "adapter-metadata.json": "f3e23329c5528c623b95c28bc93f366ffe94adc0c4e662ae41cede65cdf8a626",
+    "native-adapter.log": "40c6c2f762a57be0f7134f5a0f17c2c95c80697983e08b4aaa5678c40d833049"
+  },
+  "sourceSHA256": {
+    "Dockerfile": "4d4b424bc0b600bbe184be61b35c3ffaf54ab1cbd20ab5c8ce65bcdbc1837dd5",
+    "jars.lock.json": "e3c59d0255e42b834d06797f258ffa2ea772be48a11d0c8985bb4135d930dd9f",
+    "dataslate_ingestion.py": "1816e48ef485b2ac702a8324e78fa1dd9394fc215750e31afb44dbd1b421a658",
+    "tests/qualify_spark.py": "f1d5bc810d6250980bb20d7bd0ed5414fdb63724ea615aa1239c5c89ef68dacb",
+    "tests/write_lake_fixture.py": "7f2de305145d5fdcfa1da54fd3d9b4eeb9cf1f18bd16a0a2d8439e4998c04379",
+    "qualify_lake_sql.py": "c7e0de3ff3845f68e44cd7e7213b129d722eedfb9f98dcb498f4259d11d7c78a",
+    "prepare_lake_qualification.py": "1f03f5d974151da29c9ffff75b1a171b5b222d886a20c3059f8cfddfdf4c308c"
+  },
+  "cleanup": {
+    "ownedVMAndDataDeleted": true,
+    "runtimeTLSJWTFilesRemoved": true,
+    "evidencePreserved": true,
+    "proofSHA256": "dd1dac3048169dadca06c919e9b1fb528a80f5a73f3233b26b383268bcc98991"
+  }
+}

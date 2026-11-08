@@ -55,10 +55,10 @@ def parser():
         if action in {"create", "update"}:
             command.add_argument("--file", required=True, help="JSON body; update must include the current revision")
     runs = commands.add_parser("run", help="Granted applications, notebooks, ingestion and durable run state").add_subparsers(dest="action", required=True)
-    for action in ("bindings", "list", "submit", "submit-notebook", "submit-pipeline", "get", "cancel", "events", "logs", "source", "watch"):
+    for action in ("bindings", "list", "submit", "submit-notebook", "submit-pipeline", "get", "cancel", "events", "logs", "source", "outcome", "watch"):
         command = runs.add_parser(action)
         command.add_argument("--workspace", required=True)
-        if action in {"get", "cancel", "events", "logs", "source", "watch"}:
+        if action in {"get", "cancel", "events", "logs", "source", "outcome", "watch"}:
             command.add_argument("--id", required=True)
         if action in {"submit", "submit-notebook", "submit-pipeline"}:
             command.add_argument("--binding", required=True)
@@ -73,6 +73,25 @@ def parser():
             command.add_argument("--interval", type=float, default=2)
             command.add_argument("--max-wait", type=float, default=300)
             command.add_argument("--wait-cleanup", action="store_true", help="Also wait for source cleanup and ingestion writer release")
+    publications = commands.add_parser("publication", help="Publish verified Delta outputs; no automatic registration retry").add_subparsers(dest="action", required=True)
+    for action in ("bindings", "list", "create", "get", "watch"):
+        command = publications.add_parser(action)
+        command.add_argument("--workspace", required=True)
+        if action in {"get", "watch"}:
+            command.add_argument("--id", required=True)
+        if action == "create":
+            command.add_argument("--run", required=True)
+            command.add_argument("--binding", required=True)
+            command.add_argument("--idempotency-key", required=True, help="Persist the exact run/binding/key; reuse after an uncertain response")
+        if action == "watch":
+            command.add_argument("--interval", type=float, default=2)
+            command.add_argument("--max-wait", type=float, default=300)
+    tables = commands.add_parser("table", help="Currently granted published Delta tables and latest-table SQL drafts").add_subparsers(dest="action", required=True)
+    for action in ("list", "get"):
+        command = tables.add_parser(action)
+        command.add_argument("--workspace", required=True)
+        if action == "get":
+            command.add_argument("--id", required=True)
     queries = commands.add_parser("query", help="Governed SQL cells and owner-scoped results").add_subparsers(dest="action", required=True)
     for action in ("bindings", "list", "submit", "get", "source", "result", "cancel", "watch"):
         command = queries.add_parser(action)
@@ -190,6 +209,19 @@ def main(argv=None):
                 output = client.update_ingestion_pipeline(args.workspace, args.id, _file(args.file))
             else:
                 output = client.delete_ingestion_pipeline(args.workspace, args.id, args.revision)
+        elif args.command == "publication":
+            if args.action == "watch":
+                for state in client.watch_table_publication(args.workspace, args.id, interval=args.interval, max_wait=args.max_wait):
+                    print(json.dumps(state, ensure_ascii=False), flush=True)
+                return 0 if state["state"] == "published" else 4 if state["state"] == "unknown" else 3
+            if args.action == "create":
+                output = client.create_table_publication(args.workspace, args.run, args.binding, idempotency_key=args.idempotency_key)
+            elif args.action == "get":
+                output = client.table_publication(args.workspace, args.id)
+            else:
+                output = (client.publication_bindings if args.action == "bindings" else client.table_publications)(args.workspace)
+        elif args.command == "table":
+            output = client.published_tables(args.workspace) if args.action == "list" else client.published_table(args.workspace, args.id)
         elif args.command == "catalog":
             if args.action == "bindings":
                 output = client.catalog_bindings(args.workspace)
@@ -294,7 +326,8 @@ def main(argv=None):
                 output = (client.execution_bindings if args.action == "bindings" else client.runs)(args.workspace)
             else:
                 operation = {"get": client.run, "cancel": client.cancel_run,
-                             "events": client.run_events, "logs": client.run_logs, "source": client.run_source}[args.action]
+                             "events": client.run_events, "logs": client.run_logs, "source": client.run_source,
+                             "outcome": client.ingestion_outcome}[args.action]
                 output = operation(args.workspace, args.id)
         else:
             output = client.spark_preview(args.workspace, _file(args.file))

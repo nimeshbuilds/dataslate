@@ -9,14 +9,14 @@ import { ResultPanel } from './Results';
 import { ErrorNotice, Modal, Pill, Spinner } from './ui';
 
 interface SqlDocument { id?: string; revision?: number; name: string; cells: Cell[] }
-interface SqlProps { workspaceId: string; document: SqlDocument; blockedReason: string; onUnresolved: (value: boolean) => void; onRevisionConflict: () => void }
+interface SqlProps { preferredBinding?: { id: string; policyVersion: string; catalog: string; schema: string }; workspaceId: string; document: SqlDocument; blockedReason: string; onUnresolved: (value: boolean) => void; onRevisionConflict: () => void }
 const signal = (controller: AbortController) => AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]);
 export function SQLQuery(props: SqlProps) {
   const auth = useAuth();
   if (!auth.authenticated) return <ResultPanel />;
   return <AuthorizedSQL key={JSON.stringify([auth.config?.issuer, auth.user?.profile.sub, props.workspaceId, props.document.id ?? props.document.cells[0]?.id])} {...props} />;
 }
-function AuthorizedSQL({ workspaceId, document, blockedReason, onUnresolved, onRevisionConflict }: SqlProps) {
+function AuthorizedSQL({ workspaceId, document, preferredBinding, blockedReason, onUnresolved, onRevisionConflict }: SqlProps) {
   const auth = useAuth(); const issuer = auth.config?.issuer ?? 'development'; const subject = auth.user?.profile.sub ?? 'development-admin';
   const memberships = auth.user?.profile.dataslate_workspaces;
   const role = memberships && typeof memberships === 'object' ? (memberships as Record<string, unknown>)[workspaceId] : undefined;
@@ -32,7 +32,8 @@ function AuthorizedSQL({ workspaceId, document, blockedReason, onUnresolved, onR
   const sqlCells = document.cells.map((cell, index) => ({ ...cell, index })).filter((cell) => cell.language === 'sql');
   const selectedCell = sqlCells.find((cell) => cell.id === cellId) ?? sqlCells[0];
   const binding = bindings.find((item) => item.id === (intent?.bindingId ?? bindingId));
-  const blocked = blockedReason || (!canSubmit ? 'Workspace editor access is required to submit SQL.' : !document.id || !document.revision ? 'Save this document before executing a SQL cell.' : !selectedCell ? 'Add a SQL cell before submitting a query.' : !selectedCell.source.trim() ? 'The selected SQL cell is empty.' : '');
+  const preferredUnavailable = preferredBinding && !bindings.some((b) => b.id === preferredBinding.id && b.policyVersion === preferredBinding.policyVersion && b.catalog === preferredBinding.catalog && b.schema === preferredBinding.schema);
+  const blocked = (preferredUnavailable ? 'The published table’s SQL binding or policy changed. Reopen the table to review current access.' : '') || blockedReason || (!canSubmit ? 'Workspace editor access is required to submit SQL.' : !document.id || !document.revision ? 'Save this document before executing a SQL cell.' : !selectedCell ? 'Add a SQL cell before submitting a query.' : !selectedCell.source.trim() ? 'The selected SQL cell is empty.' : '');
   const visible = sqlCells.length > 0 || Boolean(intent) || items.length > 0;
   useEffect(() => { const controller = new AbortController(); lifecycle.current = controller; return () => controller.abort(); }, []);
   useEffect(() => { setCancelDialog(false); }, [queryId]);
@@ -43,11 +44,11 @@ function AuthorizedSQL({ workspaceId, document, blockedReason, onUnresolved, onR
       if (controller.signal.aborted) return;
       const own = history.items.filter((item) => item.notebook?.id === document.id);
       if (!own.every((item) => validQuery(item, workspaceId, issuer, subject))) throw new ApiError('invalid_response', 'The API returned an invalid SQL query history.', 200);
-      setBindings(grants.items); setBindingId((current) => grants.items.some((item) => item.id === current) ? current : grants.items[0]?.id ?? ''); setItems(own);
+      setBindings(grants.items); setBindingId((current) => grants.items.some((item) => item.id === current) ? current : preferredBinding?.id ?? grants.items[0]?.id ?? ''); setItems(own);
     }).catch((err) => { if (!controller.signal.aborted) { setAccessError(message(err)); if (err instanceof ApiError && [401, 403, 404].includes(err.status)) { epoch.current += 1; setBindings([]); setItems([]); setQuery(undefined); setQueryId(''); setResult(undefined); setDialog(false); setCancelDialog(false); } } })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [workspaceId, document.id, refresh, issuer, subject]);
+  }, [workspaceId, document.id, refresh, issuer, subject, preferredBinding?.id, preferredBinding?.policyVersion]);
   useEffect(() => {
     if (!queryId) { setQuery(undefined); setResult(undefined); setResultError(''); return; }
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
@@ -101,7 +102,7 @@ function AuthorizedSQL({ workspaceId, document, blockedReason, onUnresolved, onR
     finally { if (!controller.signal.aborted) setCancelling(false); }
   }
   return <>{visible && <section className="sql-workbench" aria-label="SQL execution"><div className="sql-workbench-heading"><div><span className="eyebrow">GOVERNED SQL</span><h2><Terminal size={17} />Run a saved SQL cell.</h2><p>The SQL engine applies the configured user identity and data policies. Results stay separate from shared notebook content.</p></div><button className="icon-button" aria-label="Refresh SQL queries" disabled={loading} onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={15} /></button></div>
-    <div className="sql-controls"><label className="field">SQL cell<select value={intent?.notebook.cellId ?? selectedCell?.id ?? ''} disabled={pending || Boolean(intent) || !sqlCells.length} onChange={(event) => setCellId(event.target.value)}>{intent && !sqlCells.some((cell) => cell.id === intent.notebook.cellId) && <option value={intent.notebook.cellId}>Saved cell {intent.notebook.cellId}</option>}{sqlCells.map((cell) => <option key={cell.id} value={cell.id}>Cell {cell.index + 1}</option>)}</select></label><label className="field">SQL execution binding<select value={intent?.bindingId ?? bindingId} disabled={loading || pending || Boolean(intent)} onChange={(event) => setBindingId(event.target.value)}>{intent && !binding && <option value={intent.bindingId}>{intent.bindingId} (unresolved)</option>}{!bindings.length && !intent && <option value="">No SQL binding granted</option>}{bindings.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="button primary" disabled={loading || pending || Boolean(restored.error) || Boolean(accessError) || (!intent && (!binding || Boolean(blocked)))} onClick={() => setDialog(true)}>{intent ? <><RefreshCw size={14} />Recover SQL submission</> : <><Play size={14} />Run saved SQL cell</>}</button></div>
+    <div className="sql-controls"><label className="field">SQL cell<select value={intent?.notebook.cellId ?? selectedCell?.id ?? ''} disabled={pending || Boolean(intent) || !sqlCells.length} onChange={(event) => setCellId(event.target.value)}>{intent && !sqlCells.some((cell) => cell.id === intent.notebook.cellId) && <option value={intent.notebook.cellId}>Saved cell {intent.notebook.cellId}</option>}{sqlCells.map((cell) => <option key={cell.id} value={cell.id}>Cell {cell.index + 1}</option>)}</select></label><label className="field">SQL execution binding<select value={intent?.bindingId ?? bindingId} disabled={loading || pending || Boolean(intent) || Boolean(preferredBinding)} onChange={(event) => setBindingId(event.target.value)}>{intent && !binding && <option value={intent.bindingId}>{intent.bindingId} (unresolved)</option>}{!bindings.length && !intent && <option value="">No SQL binding granted</option>}{bindings.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="button primary" disabled={loading || pending || Boolean(restored.error) || Boolean(accessError) || (!intent && (!binding || Boolean(blocked)))} onClick={() => setDialog(true)}>{intent ? <><RefreshCw size={14} />Recover SQL submission</> : <><Play size={14} />Run saved SQL cell</>}</button></div>
     {!intent && <p className="query-control-note">{loading ? 'Checking SQL access…' : blocked || (!bindings.length ? 'Ask an administrator to grant a qualified SQL binding to your identity.' : `Saved revision ${document.revision}. Query submission may consume compute resources.`)}</p>}
     {accessError && <ErrorNotice>{accessError}</ErrorNotice>}{error && !dialog && !cancelDialog && <ErrorNotice>{error}</ErrorNotice>}
     {intent && <div className="notice warning query-intent" role="status"><div><strong>SQL submission outcome is unresolved.</strong><p>Notebook {intent.notebook.id} · revision {intent.notebook.revision} · cell {intent.notebook.cellId}. Recovery retains the original selection after edits or deletion.</p><code className="run-key">{intent.idempotencyKey}</code></div></div>}

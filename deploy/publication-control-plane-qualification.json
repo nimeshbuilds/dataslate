@@ -1,0 +1,59 @@
+{
+  "scope": "native production controller processes with owned loopback PostgreSQL",
+  "controllers": [
+    {
+      "controller": "sql",
+      "sha256": "e5351b0cea44cb639c70b7a8efa978b58a148e7b733bfbc69a4187a2ae53215f",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "search",
+      "sha256": "b76d5b2e232d94f4e65292c049ab0b004e707089d060ea9f9167328ec243683b",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "sylon",
+      "sha256": "20efb143d9b37e592a7e240b20140a5ea421785ea21aae9c1be387ec95a3516e",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "publication",
+      "sha256": "a071591f80fafb5a0bb484e9d7c9b132a13fc7f6875329ab469547034e17b8be",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    }
+  ],
+  "schemaVersion": 11,
+  "runtimeDDLAndMigrationWritesDenied": true,
+  "notTested": [
+    "browser OIDC login",
+    "cloud services",
+    "complete Kubernetes install",
+    "HA/restore",
+    "live jobs"
+  ],
+  "qualifiedOn": "2026-11-08",
+  "platform": "darwin/arm64",
+  "productionSourceManifestSha256": "44e5a9239f22c383ac272a9d5dc975220024ed6fac97097309e1d85d4c29b413",
+  "databaseVersion": "17.11",
+  "pgvectorVersion": "0.8.7"
+}

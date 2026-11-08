@@ -171,10 +171,12 @@ type RunEvent struct {
 }
 type Run struct {
 	Resource
-	Ingestion      *IngestionProvenance `json:"ingestion,omitempty"`
-	WriterReleased bool                 `json:"writerReleased,omitempty"`
-	Notebook       *NotebookProvenance  `json:"notebook,omitempty"`
-	SourceArtifact *SourceArtifact      `json:"sourceArtifact,omitempty"`
+	IngestionOutcome        *IngestionOutcomeSummary `json:"ingestionOutcome,omitempty"`
+	OutcomeCaptureStartedAt *time.Time               `json:"outcomeCaptureStartedAt,omitempty"`
+	Ingestion               *IngestionProvenance     `json:"ingestion,omitempty"`
+	WriterReleased          bool                     `json:"writerReleased,omitempty"`
+	Notebook                *NotebookProvenance      `json:"notebook,omitempty"`
+	SourceArtifact          *SourceArtifact          `json:"sourceArtifact,omitempty"`
 	// Source is an independently persisted snapshot loaded only for the controller.
 	Source            *RunSource       `json:"-"`
 	WorkspaceID       string           `json:"workspaceId"`
@@ -202,6 +204,14 @@ func (r Run) ExecutionDeadline() time.Time {
 	return r.CreatedAt.Add(time.Duration(r.Profile.RunLimitSeconds()) * time.Second)
 }
 func cloneRun(r Run) Run {
+	if r.IngestionOutcome != nil {
+		o := *r.IngestionOutcome
+		r.IngestionOutcome = &o
+	}
+	if r.OutcomeCaptureStartedAt != nil {
+		t := *r.OutcomeCaptureStartedAt
+		r.OutcomeCaptureStartedAt = &t
+	}
 	if r.Profile.IngestionStorage != nil {
 		grants := *r.Profile.IngestionStorage
 		grants.ReadPrefixes = append([]string{}, grants.ReadPrefixes...)
@@ -230,6 +240,11 @@ func cloneRun(r Run) Run {
 		if r.Source.Ingestion != nil {
 			p := *r.Source.Ingestion
 			source.Ingestion = &p
+		}
+		if source.IngestionContract != nil {
+			c := *source.IngestionContract
+			c.Spec.Source.Schema = append([]IngestionField{}, c.Spec.Source.Schema...)
+			source.IngestionContract = &c
 		}
 		r.Source = &source
 	}
@@ -305,6 +320,8 @@ type RunLease struct {
 	Fence        int64
 }
 type RunUpdate struct {
+	IngestionOutcome                                          *IngestionOutcome
+	OutcomeCaptureStarted                                     bool
 	WriterReleased                                            bool
 	SourceArtifact                                            *SourceArtifact
 	State, UID, Message                                       string
@@ -365,6 +382,17 @@ func applyRunUpdate(r Run, u RunUpdate, now time.Time) (Run, error) {
 	if r.Terminal() && (u.State != r.State || u.UID != "" && u.UID != r.KubernetesUID || u.SubmissionStarted || u.CancelRequested) {
 		return Run{}, ErrConflict
 	}
+	if u.IngestionOutcome != nil {
+		if !validOutcomeUpdate(r, *u.IngestionOutcome) {
+			return Run{}, ErrConflict
+		}
+		o := u.IngestionOutcome.IngestionOutcomeSummary
+		r.IngestionOutcome = &o
+	}
+	if u.OutcomeCaptureStarted && r.OutcomeCaptureStartedAt == nil {
+		t := now
+		r.OutcomeCaptureStartedAt = &t
+	}
 	if u.SourceArtifact != nil {
 		if r.SourceArtifact == nil || u.SourceArtifact.Name != r.SourceArtifact.Name || len(u.SourceArtifact.UID) > 256 || (r.SourceArtifact.UID != "" && u.SourceArtifact.UID != r.SourceArtifact.UID) {
 			return Run{}, ErrConflict
@@ -393,7 +421,7 @@ func applyRunUpdate(r Run, u RunUpdate, now time.Time) (Run, error) {
 		r = appendRunEvent(r, RunEvent{At: now, State: u.State, Message: u.Message})
 	}
 	if u.WriterReleased {
-		if r.Ingestion == nil || !r.Terminal() {
+		if r.Ingestion == nil || !r.Terminal() || r.IngestionOutcome != nil && r.IngestionOutcome.State == "pending" {
 			return Run{}, ErrConflict
 		}
 		r.WriterReleased = true
@@ -450,6 +478,20 @@ func reconcileOnceWithTimeout(ctx context.Context, store Store, backend Executio
 		return finish(RunUpdate{State: "unknown", Message: message, RetryAfter: 5 * time.Second})
 	}
 	if r.Terminal() {
+		if r.IngestionOutcome != nil && r.IngestionOutcome.State == "pending" {
+			if r.OutcomeCaptureStartedAt == nil {
+				if e := checkpoint(RunUpdate{State: r.State, Message: r.Message, OutcomeCaptureStarted: true, RetainLease: true}); e != nil {
+					return true, e
+				}
+			}
+			outcome, retry := captureIngestionOutcome(op, backend, r, now())
+			if retry {
+				return true, finish(RunUpdate{State: r.State, Message: r.Message, RetryAfter: 5 * time.Second})
+			}
+			if e := checkpoint(RunUpdate{State: r.State, Message: r.Message, IngestionOutcome: &outcome, RetainLease: true}); e != nil {
+				return true, e
+			}
+		}
 		if r.Ingestion != nil && !r.WriterReleased {
 			drain, ok := backend.(IngestionDrainBackend)
 			if !ok {

@@ -3,8 +3,9 @@
 
 The output is engine configuration, not a proof that the running engine loaded
 it. Filters and masks are trusted administrator SQL; caller queries cannot set
-them. No schema ownership, writes, external functions or cross-user query access
-is granted by this profile.
+them. Reader identities have no write or metadata grants. Optional publication
+identities have ownership of exact targets and register_table access. They are
+privileged service identities: target ownership can permit other DDL too.
 """
 import argparse
 import json
@@ -26,8 +27,8 @@ def expression(value):
 
 
 def compile_rules(config):
-    if not isinstance(config, dict) or set(config) != {'brokerUser', 'grants'}:
-        raise ValueError('Expected brokerUser and grants only')
+    if not isinstance(config, dict) or not {'brokerUser', 'grants'} <= set(config) or set(config)-{'brokerUser','grants','publishers'}:
+        raise ValueError('Expected brokerUser, grants and optional publishers only')
     broker = exact(config['brokerUser'], identity=True)
     grants = config['grants']
     if not isinstance(grants, list) or len(grants) > 1000:
@@ -67,14 +68,37 @@ def compile_rules(config):
                 if 'mask' in column: constraint['mask']=expression(column['mask'])
                 item['columns'].append(constraint)
         rules['tables'].append(item)
+    reader_users = set(users)
+    publishers = config.get('publishers', [])
+    if not isinstance(publishers, list) or len(publishers) > 1000:
+        raise ValueError('Expected at most 1000 exact publication targets')
+    publisher_catalogs, publisher_targets = set(), set()
+    for publisher in publishers:
+        if not isinstance(publisher, dict) or set(publisher) != {'user','catalog','schema','table'}:
+            raise ValueError('Publisher requires exact user, catalog, schema and table only')
+        user = exact(publisher['user'], identity=True)
+        catalog, schema, table = (exact(publisher[k]) for k in ('catalog','schema','table'))
+        if user == broker or user in reader_users or publisher['catalog'] == 'system' or publisher['schema'] == 'information_schema':
+            raise ValueError('Publisher must be separate from broker and readers and cannot target system metadata')
+        target = (user,catalog,schema,table)
+        if target in publisher_targets:
+            raise ValueError('Duplicate publication target')
+        publisher_targets.add(target); publisher_catalogs.add((user,catalog)); users.add(user)
+        rules['tables'].append({'user':user,'catalog':catalog,'schema':schema,'table':table,'privileges':['SELECT','OWNERSHIP']})
+        # Readers never receive these metadata grants. Escape the suffix to
+        # keep the dollar sign literal in Java regular expressions.
+        for suffix in ('$properties', '$history'):
+            rules['tables'].append({'user':user,'catalog':catalog,'schema':schema,'table':'^'+re.escape(publisher['table']+suffix)+'$','privileges':['SELECT']})
     rules['catalogs']=[{'user':user,'catalog':catalog,'allow':'read-only'} for user,catalog in sorted(catalogs)]
+    rules['catalogs'] += [{'user':user,'catalog':catalog,'allow':'all'} for user,catalog in sorted(publisher_catalogs)]
+    rules['procedures']=[{'user':user,'catalog':catalog,'schema':'^system$','procedure':'^register_table$','privileges':['EXECUTE']} for user,catalog in sorted(publisher_catalogs)]
     # Explicit default denial also overrides Trino's special default system-catalog access.
     rules['catalogs'].append({'catalog':'.*','allow':'none'})
     rules['queries']=[{'user':user,'allow':['execute']} for user in sorted(users)]
     # Trino 484 feeds new_user through Java Matcher.appendReplacement before
     # compiling it as a regex. Preserve regex backslashes and anchors across
     # that extra interpretation; otherwise '.' broadens and '$' throws.
-    rules['impersonation']=[{'original_user':broker,'new_user':user.replace('\\','\\\\').replace('$','\\$'),'allow':True} for user in sorted(users)]
+    rules['impersonation']=[{'original_user':broker,'new_user':user.replace('\\','\\\\').replace('$','\\$'),'allow':True} for user in sorted(reader_users)]
     return rules
 
 

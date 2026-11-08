@@ -7866,6 +7866,1053 @@
         },
         "description": "Local token matching with title weight 2 and content weight 1; no embedding or generation requests. Returns at most four hits. A subsequent assistant request must explicitly select exact memory revisions."
       }
+    },
+    "/api/v1/workspaces/{workspaceId}/runs/{id}/ingestion-outcome": {
+      "get": {
+        "operationId": "getIngestionOutcome",
+        "summary": "getIngestionOutcome",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestionOutcome"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/publication-bindings": {
+      "get": {
+        "operationId": "listPublicationBindings",
+        "summary": "listPublicationBindings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PublicationBinding"
+                      },
+                      "maxItems": 1000
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/table-publications": {
+      "post": {
+        "operationId": "createTablePublication",
+        "summary": "createTablePublication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationReceipt"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationInput"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listTablePublications",
+        "summary": "listTablePublications",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TablePublication"
+                      },
+                      "maxItems": 200
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/table-publications/{id}": {
+      "get": {
+        "operationId": "getTablePublication",
+        "summary": "getTablePublication",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TablePublication"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/published-tables": {
+      "get": {
+        "operationId": "listPublishedTables",
+        "summary": "listPublishedTables",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PublishedTable"
+                      },
+                      "maxItems": 1000
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspaceId}/published-tables/{id}": {
+      "get": {
+        "operationId": "getPublishedTable",
+        "summary": "getPublishedTable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "Malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Workspace permission or explicit execution grant required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found for this workspace and submitter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency key reused for a different request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "JSON content type required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Execution or logs not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Storage or backend unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Workspace already has 100 active or unresolved runs; idempotent replays remain available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishedTable"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9017,6 +10064,13 @@
           "writerReleased": {
             "type": "boolean",
             "description": "Ingestion-only release proof after terminal application UID deletion and run-labeled Pod absence. Omitted/false retains writer; source cleanup must also finish before next run."
+          },
+          "ingestionOutcome": {
+            "$ref": "#/components/schemas/IngestionOutcomeSummary"
+          },
+          "outcomeCaptureStartedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "required": [
@@ -9155,6 +10209,9 @@
           },
           "ingestion": {
             "$ref": "#/components/schemas/IngestionProvenance"
+          },
+          "ingestionContract": {
+            "$ref": "#/components/schemas/IngestionSourceContract"
           }
         },
         "required": [
@@ -11525,6 +12582,609 @@
           "query",
           "items",
           "complete"
+        ]
+      },
+      "IngestionOutcomeSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "enum": [
+              "pending",
+              "verified",
+              "unavailable"
+            ]
+          },
+          "reasonCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "IngestionDeltaTable": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "schemaSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "minReaderVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3
+          },
+          "minWriterVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 7
+          },
+          "readerFeatures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16
+          },
+          "writerFeatures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "schemaSha256",
+          "minReaderVersion",
+          "minWriterVersion",
+          "readerFeatures",
+          "writerFeatures"
+        ]
+      },
+      "IngestionReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "version": {
+            "const": 2
+          },
+          "pipelineId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "pipelineRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "receiptBindingSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "state": {
+            "const": "succeeded"
+          },
+          "runtime": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "spark": {
+                "const": "4.1.3"
+              },
+              "delta": {
+                "const": "4.3.1"
+              }
+            },
+            "required": [
+              "spark",
+              "delta"
+            ]
+          },
+          "contractSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "queryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "completedBatches": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "processedFiles": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "processedRows": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "lastBatchId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]{0,18})$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tableExists": {
+            "type": "boolean"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestionDeltaTable"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "pipelineId",
+          "runId",
+          "pipelineRevision",
+          "receiptBindingSha256",
+          "state",
+          "runtime",
+          "contractSha256",
+          "queryId",
+          "completedBatches",
+          "processedFiles",
+          "processedRows",
+          "lastBatchId",
+          "tableExists",
+          "table"
+        ]
+      },
+      "IngestionEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "applicationUid": {
+            "type": "string"
+          },
+          "driverUid": {
+            "type": "string"
+          },
+          "driverName": {
+            "type": "string"
+          },
+          "sourceSha256": {
+            "type": "string"
+          },
+          "receiptSha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "applicationUid",
+          "driverUid",
+          "driverName",
+          "sourceSha256",
+          "receiptSha256"
+        ]
+      },
+      "IngestionOutcome": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "verified",
+              "unavailable"
+            ]
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/IngestionReceipt"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/IngestionEvidence"
+          }
+        },
+        "required": [
+          "runId",
+          "workspaceId",
+          "state"
+        ]
+      },
+      "IngestionSourceContract": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "spec": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "$ref": "#/components/schemas/IngestionSource"
+              },
+              "destination": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "uri": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/([A-Za-z0-9_-][A-Za-z0-9_.=-]*/)+$",
+                    "description": "Canonical S3 nonempty prefix ending slash. No escapes, IP bucket, adjacent dots, .-, -., wildcards, credentials, query or fragments. Source/destination/checkpoint must be disjoint."
+                  }
+                },
+                "required": [
+                  "uri"
+                ]
+              },
+              "checkpointUri": {
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^s3://[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]/([A-Za-z0-9_-][A-Za-z0-9_.=-]*/)+$",
+                "description": "Canonical S3 nonempty prefix ending slash. No escapes, IP bucket, adjacent dots, .-, -., wildcards, credentials, query or fragments. Source/destination/checkpoint must be disjoint."
+              },
+              "maxFilesPerTrigger": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              }
+            },
+            "required": [
+              "source",
+              "destination",
+              "checkpointUri",
+              "maxFilesPerTrigger"
+            ]
+          },
+          "receiptBindingSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "contractSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "schemaSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "spec",
+          "receiptBindingSha256",
+          "contractSha256",
+          "schemaSha256"
+        ]
+      },
+      "PublicationBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "pipelineId": {
+            "type": "string"
+          },
+          "executionBindingId": {
+            "type": "string"
+          },
+          "catalog": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          },
+          "maxRunSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "name",
+          "policyVersion",
+          "pipelineId",
+          "executionBindingId",
+          "catalog",
+          "schema",
+          "table",
+          "maxRunSeconds"
+        ]
+      },
+      "PublicationTarget": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "catalog": {
+            "type": "string"
+          },
+          "schema": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "catalog",
+          "schema",
+          "table"
+        ]
+      },
+      "TablePublication": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "bindingId": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "deltaVersion": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "submittedBy": {
+            "$ref": "#/components/schemas/ExecutionSubject"
+          },
+          "pipeline": {
+            "$ref": "#/components/schemas/PipelineSelection"
+          },
+          "target": {
+            "$ref": "#/components/schemas/PublicationTarget"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "checking",
+              "registering",
+              "verifying",
+              "published",
+              "failed",
+              "unknown"
+            ]
+          },
+          "registrationStarted": {
+            "type": "boolean"
+          },
+          "publishedTableId": {
+            "type": "string"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reconciliationComplete": {
+            "type": "boolean",
+            "description": "False while bounded automatic readback continues, including unknown; true once reconciliation has ended."
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "bindingId",
+          "policyVersion",
+          "runId",
+          "deltaVersion",
+          "message",
+          "createdAt",
+          "updatedAt",
+          "revision",
+          "submittedBy",
+          "pipeline",
+          "target",
+          "state",
+          "registrationStarted",
+          "reconciliationComplete"
+        ]
+      },
+      "PublicationInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "bindingId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+          }
+        },
+        "required": [
+          "runId",
+          "bindingId",
+          "idempotencyKey"
+        ]
+      },
+      "PublicationReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "publication": {
+            "$ref": "#/components/schemas/TablePublication"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "publication",
+          "replayed"
+        ]
+      },
+      "PublishedTable": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "bindingId": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/PublicationTarget"
+          },
+          "format": {
+            "const": "delta"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "string",
+                    "long",
+                    "double",
+                    "boolean",
+                    "date"
+                  ]
+                },
+                "nullable": {
+                  "const": true
+                }
+              },
+              "required": [
+                "name",
+                "type",
+                "nullable"
+              ]
+            },
+            "maxItems": 200
+          },
+          "verifiedDeltaVersion": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]{0,18})$"
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "queryMode": {
+            "const": "latest"
+          },
+          "sql": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "bindingId": {
+                "type": "string"
+              },
+              "policyVersion": {
+                "type": "string"
+              },
+              "draft": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "bindingId",
+              "policyVersion",
+              "draft"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId",
+          "name",
+          "bindingId",
+          "policyVersion",
+          "target",
+          "format",
+          "fields",
+          "verifiedDeltaVersion",
+          "verifiedAt",
+          "queryMode",
+          "sql"
         ]
       }
     }

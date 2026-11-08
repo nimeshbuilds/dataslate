@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and probe the six pinned production images in an explicitly owned Colima VM.
+"""Build and probe the seven pinned production images in an explicitly owned Colima VM.
 
 No registry push, cluster mutation, or cloud operation. The check phase needs the
 private owned TLS PostgreSQL fixture used by qualify-control-plane.py, already
@@ -33,6 +33,7 @@ IMAGES = {
     "sql": ("api", "SQLControllerDockerfile", 58082),
     "search": ("api", "SearchControllerDockerfile", 58083),
     "sylon": ("api", "SylonControllerDockerfile", 58084),
+    "publication": ("api", "PublicationControllerDockerfile", 58085),
     "web": ("web", "Dockerfile", 8080),
 }
 EXCLUDE = {".git", ".qa", ".tools", "node_modules", "dist", "bin", "coverage", "test-results", "playwright-report"}
@@ -203,13 +204,15 @@ def remote_main(root):
         stop(web)
         launch("web", {"DATASLATE_API_UPSTREAM": "http://user:password@localhost/inject"}, suffix="-denied", failure=True, expected_denial="DATASLATE_API_UPSTREAM must be an http(s) service origin")
         stop(api)
-        for kind in ("execution", "sql", "search", "sylon"):
+        for kind in ("execution", "sql", "search", "sylon", "publication"):
             env = {"DATASLATE_DATABASE_URL": config["runtimeURL"]}
             if kind == "execution":
                 env.update(DATASLATE_EXECUTION_BINDINGS_FILE="/qualification/empty-bindings.json", DATASLATE_CONTROLLER_ADDR="127.0.0.1:58081", DATASLATE_EXECUTION_NAMESPACES="dataslate-qualification", DATASLATE_KUBERNETES_API_URL=f"https://127.0.0.1:{discovery.server_port}", DATASLATE_KUBERNETES_CA_FILE="/qualification/discovery.crt", DATASLATE_KUBERNETES_TOKEN_FILE="/qualification/discovery-token")
             else:
                 prefix = "DATASLATE_" + kind.upper()
                 env.update({prefix + "_BINDINGS_FILE": "/qualification/empty-bindings.json", prefix + "_CONTROLLER_ADDR": "127.0.0.1:" + str(IMAGES[kind][2])})
+                if kind == "publication":
+                    env.update(DATASLATE_EXECUTION_BINDINGS_FILE="/qualification/empty-bindings.json", DATASLATE_SQL_BINDINGS_FILE="/qualification/empty-bindings.json")
             for attempt in range(2):
                 name = launch(kind, env)
                 wait_ready(kind)
@@ -221,7 +224,7 @@ def remote_main(root):
             env["DATASLATE_DATABASE_URL"] = urllib.parse.urlunsplit(insecure._replace(query="sslmode=disable"))
             launch(kind, env, suffix="-insecure-denied", failure=True, expected_denial="database connection failed")
         assert len(discovery_requests) >= 3
-        result = {"images": results, "nonRootReadOnlyCapDropNoNewPrivileges": True, "apiDevelopmentLoopbackStartup": True, "apiProductionMisconfigurationRejected": True, "apiDevelopmentExposureRejected": True, "webAssetsSPAProxyHeadersAndCallbackLogRedaction": True, "webInvalidUpstreamRejected": True, "controllersVerifiedTLSIdleReconciliationRestartAndGracefulShutdown": ["execution", "sql", "search", "sylon"], "controllersInsecureDatabaseRejected": True, "sparkDiscoveryProtocolFixture": True, "notTested": ["production OIDC login", "Spark operator execution", "live controller jobs", "cloud data services", "multi-node/HA", "amd64 images"]}
+        result = {"images": results, "nonRootReadOnlyCapDropNoNewPrivileges": True, "apiDevelopmentLoopbackStartup": True, "apiProductionMisconfigurationRejected": True, "apiDevelopmentExposureRejected": True, "webAssetsSPAProxyHeadersAndCallbackLogRedaction": True, "webInvalidUpstreamRejected": True, "controllersVerifiedTLSIdleReconciliationRestartAndGracefulShutdown": ["execution", "sql", "search", "sylon", "publication"], "controllersInsecureDatabaseRejected": True, "sparkDiscoveryProtocolFixture": True, "notTested": ["production OIDC login", "Spark operator execution", "live controller jobs", "cloud data services", "multi-node/HA", "amd64 images"]}
         (root / "startup-summary.json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result))
     finally:
@@ -291,7 +294,7 @@ def main():
 
     evidence = json.loads((output / "build-summary.json").read_text())
     if evidence["profile"] != args.profile or evidence["remoteDirectory"] != remote_dir or len(evidence["builds"]) != len(IMAGES):
-        raise ValueError("Build evidence must include all six images for this VM/output directory")
+        raise ValueError("Build evidence must include all seven images for this VM/output directory")
     for component, expected in evidence["sourceContextSHA256"].items():
         if package(repo / component)[1] != expected:
             raise ValueError(component + " sources changed after image build; rebuild the final snapshot")
@@ -359,7 +362,7 @@ def main():
         # Also cover a broken SSH session/runner timeout before its finally runs.
         names = ["dataslate-oci-qualification-" + kind for kind in IMAGES]
         names += ["dataslate-oci-qualification-api-denied", "dataslate-oci-qualification-api-exposure-denied", "dataslate-oci-qualification-web-denied"]
-        names += ["dataslate-oci-qualification-" + kind + "-insecure-denied" for kind in ("execution", "sql", "search", "sylon")]
+        names += ["dataslate-oci-qualification-" + kind + "-insecure-denied" for kind in ("execution", "sql", "search", "sylon", "publication")]
         ssh("sudo", "nerdctl", "rm", "-f", *names, failure=True)
         # Generated private configs/keys are removed; diagnostic archives contain
         # only process logs, never environment files or the database fixture.

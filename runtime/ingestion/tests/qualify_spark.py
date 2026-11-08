@@ -27,7 +27,7 @@ class SparkQualification(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(prefix='dataslate-ingestion-qualify-')
         self.root = Path(self.tmp.name)
         (self.root/'source').mkdir()
-        self.spec = {'version': 1, 'pipelineId': 'pipeline-test', 'runId': 'run-test', 'pipelineRevision': 1,
+        self.spec = {'version': 1, 'pipelineId': 'pipeline-test', 'runId': 'run-test', 'pipelineRevision': 1, 'receiptBindingSha256': 'a'*64,
                      'source': {'format': 'json', 'uri': (self.root/'source').as_uri()+'/', 'schema': [
                          {'name': 'id', 'type': 'long', 'nullable': False}, {'name': 'name', 'type': 'string', 'nullable': True}]},
                      'destination': {'uri': (self.root/'table').as_uri()+'/'},
@@ -46,15 +46,16 @@ class SparkQualification(unittest.TestCase):
         output = io.StringIO()
         try:
             with contextlib.redirect_stdout(output):
-                receipt = runtime.run(spec or self.spec, allow_local_files=True)
+                receipt = runtime.run(spec or self.spec, allow_local_files=True, receipt_path=str(self.root/'receipt.json'))
         finally:
             lines = [line for line in output.getvalue().splitlines() if line.startswith(runtime.RECEIPT_PREFIX)]
             self.assertEqual(len(lines), 1)
             self.last_receipt = json.loads(lines[0][len(runtime.RECEIPT_PREFIX):])
-            self.assertLess(len(lines[0]), 2048)
+            self.assertLessEqual(len(lines[0].removeprefix(runtime.RECEIPT_PREFIX).encode()), runtime.RECEIPT_LIMIT)
             self.assertIsNone(SparkSession.getActiveSession())
             print(lines[0], flush=True)
         self.assertEqual(receipt, self.last_receipt)
+        self.assertEqual(json.loads((self.root/'receipt.json').read_text()), receipt)
         return receipt
 
     @contextlib.contextmanager
@@ -73,14 +74,25 @@ class SparkQualification(unittest.TestCase):
 
     def test_01_json_incremental_restart_noop_and_snappy(self):
         self.json_file('part1.json', [{'id': 1, 'name': 'one'}, {'id': 2, 'name': None}])
-        receipt = self.execute(); self.assertEqual(receipt['processedRows'], 2)
+        receipt = self.execute(); self.assertEqual(receipt['processedRows'], '2')
         self.assertTrue(receipt['tableExists'])
-        self.assertEqual(self.execute()['processedRows'], 0)
+        table = receipt['table']
+        self.assertEqual(table['version'], '0')
+        self.assertEqual(table['minReaderVersion'], 1)
+        self.assertEqual(table['minWriterVersion'], 2)
+        self.assertEqual(table['readerFeatures'], [])
+        self.assertEqual(table['writerFeatures'], [])
+        metadata = next(json.loads(line)['metaData'] for line in (self.root/'table'/'_delta_log'/'00000000000000000000.json').read_text().splitlines() if 'metaData' in json.loads(line))
+        self.assertEqual(table['id'], metadata['id'])
+        self.assertEqual(table['schemaSha256'], runtime._snapshot_schema_hash(metadata['schemaString'], self.spec['source']['schema']))
+        noop = self.execute()
+        self.assertEqual(noop['processedRows'], '0')
+        self.assertEqual(noop['table'], table)
         self.json_file('part2.json', [{'id': 3, 'name': 'three'}])
         # Late discovery of an old immutable file is not dropped by the default
         # one-week Spark seen-file horizon.
         os.utime(self.root/'source'/'part2.json', (1500000000, 1500000000))
-        self.assertEqual(self.execute()['processedRows'], 1)
+        self.assertEqual(self.execute()['processedRows'], '1')
         self.assertEqual(self.table_rows(), [(1, 'one'), (2, None), (3, 'three')])
         with self.spark() as spark:
             jvm = spark._jvm; conf = spark.sparkContext._jsc.hadoopConfiguration()
@@ -130,7 +142,7 @@ class SparkQualification(unittest.TestCase):
         with self.spark() as spark:
             frame = spark.createDataFrame([(1, 'one'), (2, 'two')], runtime._schema(self.spec['source']['schema']))
             frame.coalesce(1).write.parquet(str(self.root/'source'/'one'))
-        self.assertEqual(self.execute()['processedRows'], 2)
+        self.assertEqual(self.execute()['processedRows'], '2')
         self.assertEqual(self.table_rows(), [(1, 'one'), (2, 'two')])
         with self.spark() as spark:
             spark.createDataFrame([], 'id long, name string, extra string').coalesce(1).write.parquet(str(self.root/'source'/'two'))
@@ -223,7 +235,36 @@ class SparkQualification(unittest.TestCase):
     def test_14_empty_source_success_does_not_claim_table(self):
         receipt = self.execute()
         self.assertFalse(receipt['tableExists'])
-        self.assertEqual(receipt['processedRows'], 0)
+        self.assertEqual(receipt['processedRows'], '0')
+        self.assertIsNone(receipt['table'])
+
+    def test_15_receipt_write_failure_has_no_success_marker(self):
+        self.json_file('part1.json', [{'id': 1, 'name': 'one'}])
+        (self.root/'receipt.json').mkdir()
+        with self.assertRaisesRegex(runtime.IngestionError, 'receipt_write_failed'):
+            self.execute()
+        self.assertEqual(self.last_receipt['state'], 'failed')
+        self.assertEqual(self.last_receipt['errorCode'], 'receipt_write_failed')
+        # Receipt failure never claims the previously committed batch rolled back.
+        self.assertEqual(self.table_rows(), [(1, 'one')])
+
+    def test_16_receipt_limit_is_failure_not_truncated_success(self):
+        with patch.object(runtime, 'RECEIPT_LIMIT', 16), self.assertRaisesRegex(runtime.IngestionError, 'receipt_too_large'):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                runtime.run(self.spec, allow_local_files=True, receipt_path=str(self.root/'receipt.json'))
+        receipts = [json.loads(line[len(runtime.RECEIPT_PREFIX):]) for line in output.getvalue().splitlines() if line.startswith(runtime.RECEIPT_PREFIX)]
+        self.assertEqual(len(receipts), 1)
+        self.assertEqual(receipts[0]['state'], 'failed')
+        self.assertFalse((self.root/'receipt.json').exists())
+
+    def test_17_unverified_snapshot_cannot_emit_success(self):
+        self.json_file('part1.json', [{'id': 1, 'name': 'one'}])
+        with patch.object(runtime, '_snapshot_schema_hash', side_effect=runtime.IngestionError('delta_schema_unverified')), self.assertRaisesRegex(runtime.IngestionError, 'delta_schema_unverified'):
+            self.execute()
+        self.assertEqual(self.last_receipt['state'], 'failed')
+        self.assertEqual(self.last_receipt['errorCode'], 'delta_schema_unverified')
+        self.assertEqual(self.table_rows(), [(1, 'one')])
 
 
 if __name__ == '__main__':

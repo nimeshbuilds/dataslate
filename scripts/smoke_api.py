@@ -34,6 +34,13 @@ assert client.sql_bindings(workspace_id) == {"items": []}
 assert client.queries(workspace_id) == {"items": []}
 expect_error(501, lambda: client.create_query(workspace_id,"unconfigured","nb-missing",1,"cell-1",idempotency_key="smoke-sql"))
 expect_error(404, lambda: client.query_result(workspace_id,"qry-missing"))
+assert client.publication_bindings(workspace_id) == {"items": []}
+assert client.table_publications(workspace_id) == {"items": []}
+assert client.published_tables(workspace_id) == {"items": []}
+expect_error(501, lambda: client.create_table_publication(workspace_id,"run-missing","unconfigured",idempotency_key="smoke-publication"))
+expect_error(404, lambda: client.ingestion_outcome(workspace_id,"run-missing"))
+expect_error(404, lambda: client.table_publication(workspace_id,"pub-missing"))
+expect_error(404, lambda: client.published_table(workspace_id,"unconfigured"))
 assert client.catalog_bindings(workspace_id) == {"items": []}
 expect_error(403, lambda: client.verify_catalog(workspace_id,"unconfigured"))
 expect_error(403, lambda: client.catalog_table(workspace_id,"unconfigured",["analytics"],"orders"))
@@ -105,4 +112,4 @@ for operator, group in (("apache", "spark.apache.org/v1"), ("kubeflow", "sparkop
     result = client.spark_preview(workspace_id, {**request, "operator": operator})
     assert result["submitted"] is False
     assert result["manifest"]["apiVersion"] == group
-print(json.dumps({"result": "passed", "checks": ["API/SDK contract", "disabled execution and owner-scoped routes", "unconfigured SQL denies submission", "unconfigured catalog denies metadata", "unconfigured search denies indexing and transfer", "unconfigured Sylon denies provider use", "private memory denies missing provenance and unconfigured recall", "notebook save/reopen", "revision conflict", "cross-workspace lookup", "pipeline lifecycle and revision fencing", "broader module inventory", "dependency preview", "Apache and Kubeflow manifests"], "liveEngineExecution": False}))
+print(json.dumps({"result": "passed", "checks": ["API/SDK contract", "disabled execution and owner-scoped routes", "unconfigured SQL denies submission", "unconfigured publication exposes no output or mutation", "unconfigured catalog denies metadata", "unconfigured search denies indexing and transfer", "unconfigured Sylon denies provider use", "private memory denies missing provenance and unconfigured recall", "notebook save/reopen", "revision conflict", "cross-workspace lookup", "pipeline lifecycle and revision fencing", "broader module inventory", "dependency preview", "Apache and Kubeflow manifests"], "liveEngineExecution": False}))

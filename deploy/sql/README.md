@@ -63,3 +63,12 @@ HELM_BIN=/absolute/path/helm python3 -m unittest discover -s deploy/sql -p 'test
 ```
 
 Official contracts: [Trino client protocol](https://trino.io/docs/current/develop/client-protocol.html), [JWT authentication](https://trino.io/docs/current/security/jwt.html), [internal TLS](https://trino.io/docs/current/security/internal-communication.html), [file access control](https://trino.io/docs/current/security/file-system-access-control.html). Local tests establish a bounded profile, not EKS/S3, connector-wide, HA or performance qualification.
+
+
+### Optional Delta publication service identity
+
+`policy.py` accepts an optional `publishers` array of exact `{user,catalog,schema,table}` entries. A publisher must differ from the SQL broker and every reader identity. It receives catalog access, ownership/SELECT on the exact target, SELECT on that target's `$properties` and `$history`, and EXECUTE on the catalog's `system.register_table` procedure. The broker cannot impersonate a publisher. Reader filters, masks, metadata denial and read-only access remain enforced independently.
+
+This is a privileged service identity: exact-table ownership may permit other DDL on that target. The DataSlate publication controller exposes only internally generated registration and metadata statements; never give this credential to notebook users or configure it as a query identity. No schema ownership, wildcard target, or other procedure is granted. The schema must already exist. The Delta catalog requires a reviewed Hive Metastore or AWS Glue configuration with `delta.register-table-procedure.enabled=true`, the corresponding storage identity, and `delta.security=SYSTEM`. An Iceberg/Polaris catalog is a separate integration.
+
+The control plane validates a durable ingestion receipt before accepting publication, persists dispatch intent, sends one registration request and verifies location, retained Delta version, schema and protocol. A lost response is reconciled through reads rather than repeating registration. The native Delta table UUID is runtime-attested; Trino metadata does not independently verify it. Current publication supports string, long, double, boolean and date. Spark timestamps are rejected because the pinned Trino Delta reader reduces their microsecond precision. See [the publication contract](../../docs/implementation/publication-contract.md).

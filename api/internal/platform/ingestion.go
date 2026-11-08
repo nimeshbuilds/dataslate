@@ -196,21 +196,24 @@ func snapshotIngestion(r Run, p IngestionPipeline) (Run, error) {
 	if !r.Profile.IngestionStorage.Allows(p.IngestionSpec) {
 		return Run{}, ErrIngestionStorageDenied
 	}
+	contract := ingestionSourceContract(r, p.IngestionSpec)
 	config := struct {
 		Version          int    `json:"version"`
 		PipelineID       string `json:"pipelineId"`
 		RunID            string `json:"runId"`
 		PipelineRevision int    `json:"pipelineRevision"`
 		IngestionSpec
-		TimeoutSeconds int `json:"timeoutSeconds"`
-	}{1, p.ID, r.ID, p.Revision, p.IngestionSpec, r.Profile.RunLimitSeconds()}
+		TimeoutSeconds       int    `json:"timeoutSeconds"`
+		ReceiptBindingSHA256 string `json:"receiptBindingSha256"`
+	}{1, p.ID, r.ID, p.Revision, p.IngestionSpec, r.Profile.RunLimitSeconds(), contract.ReceiptBindingSHA256}
 	data, _ := json.Marshal(config)
 	quoted, _ := json.Marshal(string(data))
 	code := fmt.Sprintf("# DataSlate immutable file ingestion snapshot.\nimport json\nfrom dataslate_ingestion import run\nrun(json.loads(%s))\n", quoted)
 	sum := sha256.Sum256([]byte(code))
 	provenance := IngestionProvenance{PipelineSelection: PipelineSelection{p.ID, p.Revision}, SHA256: hex.EncodeToString(sum[:]), Bytes: len(code), SourceURI: p.Source.URI, DestinationURI: p.Destination.URI, CheckpointURI: p.CheckpointURI}
 	r.Ingestion = &provenance
-	r.Source = &RunSource{Source: code, Ingestion: &provenance}
+	r.Source = &RunSource{Source: code, Ingestion: &provenance, IngestionContract: &contract}
+	r.IngestionOutcome = &IngestionOutcomeSummary{State: "pending"}
 	r.SourceArtifact = &SourceArtifact{Name: r.KubernetesName + "-source", State: "pending"}
 	return r, nil
 }
@@ -219,6 +222,12 @@ func (r Run) validateIngestionSource() error {
 		return ErrIngestionNotExecutable
 	}
 	p := r.Ingestion
+	if c := r.Source.IngestionContract; c != nil {
+		expected := ingestionSourceContract(r, c.Spec)
+		if c.Spec.Validate() != nil || !reflect.DeepEqual(*c, expected) || c.Spec.Source.URI != p.SourceURI || c.Spec.Destination.URI != p.DestinationURI || c.Spec.CheckpointURI != p.CheckpointURI {
+			return ErrIngestionNotExecutable
+		}
+	}
 	if !identifier.MatchString(p.ID) || p.Revision < 1 || p.Bytes < 1 || p.Bytes > MaxNotebookSourceBytes || len(r.Source.Source) != p.Bytes || !reflect.DeepEqual(p, r.Source.Ingestion) {
 		return ErrIngestionNotExecutable
 	}

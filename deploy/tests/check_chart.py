@@ -135,6 +135,8 @@ def main():
     check_execution_chart(run, external_args)
     from check_sql_chart import check_sql_chart
     check_sql_chart(run, external_args)
+    from check_publication_chart import check_publication_chart
+    check_publication_chart(run, external_args)
     from check_catalog_chart import check_catalog_chart
     check_catalog_chart(run, external_args)
     from check_search_chart import check_search_chart

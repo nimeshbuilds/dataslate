@@ -19,6 +19,7 @@ spec:
         dataslate.io/tier: backend
       annotations:
         checksum/execution: {{ .Values.execution | toJson | sha256sum }}
+        checksum/publication: {{ .Values.publication | toJson | sha256sum }}
         checksum/sql: {{ .Values.sql | toJson | sha256sum }}
         checksum/sylon: {{ .Values.sylon | toJson | sha256sum }}
         checksum/search: {{ .Values.search | toJson | sha256sum }}
@@ -65,6 +66,9 @@ spec:
             {{- if .Values.search.enabled }}
             - {name: DATASLATE_SEARCH_BINDINGS_FILE, value: /etc/dataslate/search/bindings.json}
             {{- end }}
+            {{- if .Values.publication.enabled }}
+            - {name: DATASLATE_PUBLICATION_BINDINGS_FILE, value: /etc/dataslate/publication/bindings.json}
+            {{- end }}
             {{- if .Values.sql.enabled }}
             - {name: DATASLATE_SQL_BINDINGS_FILE, value: /etc/dataslate/sql/bindings.json}
             {{- end }}
@@ -103,6 +107,9 @@ spec:
             - {name: search, mountPath: /etc/dataslate/search, readOnly: true}
             {{- include "dataslate.searchCredentialMounts" .Values.search.credentials | nindent 12 }}
             {{- end }}
+            {{- if .Values.publication.enabled }}
+            - {name: publication, mountPath: /etc/dataslate/publication, readOnly: true}
+            {{- end }}
             {{- if .Values.sql.enabled }}
             - {name: sql, mountPath: /etc/dataslate/sql, readOnly: true}
             {{- end }}
@@ -110,6 +117,11 @@ spec:
             - {name: execution, mountPath: /etc/dataslate/execution, readOnly: true}
             {{- end }}
       volumes:
+        {{- if .Values.publication.enabled }}
+        - name: publication
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-publication
+        {{- end }}
         {{- if .Values.sylon.enabled }}
         - name: sylon
           configMap:

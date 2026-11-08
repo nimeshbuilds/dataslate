@@ -8,12 +8,17 @@ import type { Cell, Notebook, Workspace } from './api';
 import { NotebookBatch } from './NotebookBatch';
 import type { SylonApplyReceipt, SylonSeed } from './sylon-api';
 import { SQLQuery } from './SQLQuery';
+import { publications, targetName, validPublishedTable } from './publication-api';
+import type { PublishedSqlSeed, PublishedTable } from './publication-api';
+import { useAuth } from './auth';
 import { download, ErrorNotice, Pill, Spinner, SylonMark } from './ui';
 
 type Draft = Pick<Notebook, 'name' | 'kind' | 'cells'> & { id?: string; revision?: number; updatedAt?: string };
 const serialize = (draft: Draft | undefined) => draft ? JSON.stringify({ name: draft.name, kind: draft.kind, cells: draft.cells }) : '';
 
-export function Editor({ workspace, initialNotebookId, onDirty, openCompute, openRun, openSylon, appliedReceipt }: { workspace: Workspace; initialNotebookId?: string; onDirty: (dirty: boolean) => void; openCompute: () => void; openRun: (id: string) => void; openSylon: (seed?: SylonSeed) => void; appliedReceipt?: SylonApplyReceipt }) {
+export function Editor({ workspace, initialNotebookId, publishedSqlSeed, onSqlSeedConsumed, onDirty, openCompute, openRun, openSylon, appliedReceipt }: { workspace: Workspace; initialNotebookId?: string; publishedSqlSeed?: PublishedSqlSeed; onSqlSeedConsumed: () => void; onDirty: (dirty: boolean) => void; openCompute: () => void; openRun: (id: string) => void; openSylon: (seed?: SylonSeed) => void; appliedReceipt?: SylonApplyReceipt }) {
+  const auth = useAuth();
+  const [publicationContext, setPublicationContext] = useState<PublishedTable>();
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [draft, setDraft] = useState<Draft>();
   const [baseline, setBaseline] = useState('');
@@ -28,6 +33,19 @@ export function Editor({ workspace, initialNotebookId, onDirty, openCompute, ope
   const [listError, setListError] = useState('');
   const dirty = Boolean(draft && serialize(draft) !== baseline);
   const draftRef = useRef(draft); draftRef.current = draft;
+  useEffect(() => { if (!auth.authenticated) setPublicationContext(undefined); }, [auth.authenticated]);
+  useEffect(() => {
+    if (!publishedSqlSeed || publishedSqlSeed.workspaceId !== workspace.id || !auth.authenticated) return;
+    const c = new AbortController(); const before = serialize(draftRef.current); setOpening(true); setError('');
+    publications.table(workspace.id, publishedSqlSeed.tableId, AbortSignal.any([c.signal, AbortSignal.timeout(20000)])).then((table) => {
+      if (c.signal.aborted) return;
+      if (!validPublishedTable(table, workspace.id, publishedSqlSeed.tableId)) throw new Error('The published table or SQL handoff could not be verified.');
+      if (serialize(draftRef.current) !== before) throw new Error('Your draft changed while table access was checked. Your edits were kept; open the table again when ready.');
+      setPublicationContext(table); setBaseline(''); setConflict(false); setDraft({ name: `${table.name} preview`.slice(0, 120), kind: 'sql', cells: [{ id: crypto.randomUUID(), language: 'sql', source: table.sql.draft }] });
+    }).catch((e) => { if (!c.signal.aborted) setError(message(e)); }).finally(() => { if (!c.signal.aborted) { setOpening(false); onSqlSeedConsumed(); } });
+    return () => c.abort();
+  }, [workspace.id, publishedSqlSeed?.nonce, auth.authenticated]);
+
   useEffect(() => {
     if (!appliedReceipt || appliedReceipt.notebookId !== draftRef.current?.id) return;
     if (dirty) { setError('Sylon saved a newer notebook revision. Your local edits were preserved; download them before reloading.'); setConflict(true); return; }
@@ -54,7 +72,7 @@ export function Editor({ workspace, initialNotebookId, onDirty, openCompute, ope
     api.notebook(workspace.id, initialNotebookId).then((notebook) => {
       if (!active) return;
       if (notebook.id !== initialNotebookId || notebook.workspaceId !== workspace.id) throw new Error('The saved document did not match this workspace.');
-      setDraft(notebook); setBaseline(serialize(notebook));
+      setPublicationContext(undefined); setDraft(notebook); setBaseline(serialize(notebook));
     }).catch((err) => { if (active) setError(message(err)); }).finally(() => { if (active) setOpening(false); });
     return () => { active = false; };
   }, [workspace.id, initialNotebookId]);
@@ -65,14 +83,14 @@ export function Editor({ workspace, initialNotebookId, onDirty, openCompute, ope
   async function open(id: string, discard = false) {
     if (!discard && !confirmDiscard()) return;
     setOpening(true); setError(''); setConflict(false);
-    try { const notebook = await api.notebook(workspace.id, id); setDraft(notebook); setBaseline(serialize(notebook)); }
+    try { const notebook = await api.notebook(workspace.id, id); setPublicationContext(undefined); setDraft(notebook); setBaseline(serialize(notebook)); }
     catch (err) { setError(message(err)); }
     finally { setOpening(false); }
   }
   function create(kind: 'notebook' | 'sql') {
     if (opening || saving) return;
     if (!confirmDiscard()) return;
-    setError(''); setConflict(false); setBaseline('');
+    setPublicationContext(undefined); setError(''); setConflict(false); setBaseline('');
     setDraft({ name: kind === 'sql' ? 'Untitled query' : 'Untitled notebook', kind, cells: [{ id: crypto.randomUUID(), language: kind === 'sql' ? 'sql' : 'python', source: kind === 'sql' ? '-- Write your SQL here.\n' : '# Start your analysis here.\n' }] });
   }
   const save = useCallback(async () => {
@@ -100,7 +118,8 @@ export function Editor({ workspace, initialNotebookId, onDirty, openCompute, ope
       <div className="editor-toolbar"><button className="compute-selector" onClick={openCompute}><span className="status-dot warning" />Spark application runs<ChevronRight size={14} /></button><div><button className="button compact secondary" disabled title="Interactive cell execution is unavailable. Saved Python notebooks can use an approved batch binding."><Play size={13} />Run all</button><button className="button compact ghost" onClick={() => openSylon()}><SylonMark size={17} />Sylon</button></div></div>
       {draft.kind === 'notebook' && <NotebookBatch workspaceId={workspace.id} document={draft} blockedReason={conflict ? 'Resolve the newer saved revision before submitting a batch.' : saving || opening ? 'Wait for the document operation to finish.' : dirty ? 'Save your changes before submitting a new batch.' : ''} onUnresolved={setBatchUnresolved} onViewRun={openRun} onRevisionConflict={() => { setConflict(true); setError('The saved notebook changed before this batch was accepted. Reload the saved revision and review it before submitting again.'); }} />}
       {error && <div className="editor-notice"><ErrorNotice>{error}{conflict && <div className="conflict-actions"><p>A newer revision exists. Download your edits before reloading; DataSlate will not overwrite the saved version.</p><button className="button secondary compact" onClick={() => download(`${draft.name}-unsaved.json`, JSON.stringify(draft, null, 2))}>Download my edits</button><button className="button secondary compact" onClick={() => { if (draft.id && window.confirm('Reload the latest saved version? Your unsaved edits will be discarded.')) void open(draft.id, true); }}>Reload saved revision</button></div>}</ErrorNotice></div>}
-      <div className="cells-scroll">{draft.cells.map((cell, index) => <article className="notebook-cell" key={cell.id} aria-label={`Cell ${index + 1}`}><div className="cell-heading"><div><span className="cell-number">{String(index + 1).padStart(2, '0')}</span><select aria-label={`Cell ${index + 1} language`} value={cell.language} onChange={(e) => editCell(cell.id, { language: e.target.value as Cell['language'] })} disabled={saving}><option value="python">Python</option><option value="sql">SQL</option></select></div><div><span className="cell-hint">Cell execution not tracked</span><button className="icon-button" aria-label={`Remove cell ${index + 1}`} disabled={draft.cells.length < 2 || saving} onClick={() => setDraft({ ...draft, cells: draft.cells.filter((item) => item.id !== cell.id) })}><Trash2 size={14} /></button></div></div><CodeMirror aria-label={`Cell ${index + 1} code`} value={cell.source} extensions={[cell.language === 'sql' ? sql() : python()]} onChange={(source) => editCell(cell.id, { source })} minHeight="142px" editable={!saving && !opening} basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true, autocompletion: true }} /><div className="cell-assistant-action"><button className="button ghost compact" disabled={dirty || saving || opening || conflict || !draft.id} aria-label={`Ask Sylon about cell ${index + 1}`} title={dirty ? 'Save this document before selecting assistant context.' : 'Review an assistant request with this exact saved cell.'} onClick={() => { if (draft.id && draft.revision) openSylon({ notebook: { id: draft.id, revision: draft.revision, cellId: cell.id }, prompt: 'Explain this cell and suggest improvements.', nonce: crypto.randomUUID() }); }}><SylonMark size={14} />Ask Sylon</button></div><div className="cell-footer"><Play size={11} /><span>{cell.language === 'sql' ? 'Run this saved SQL cell below. Results remain private to your identity.' : 'Cell outputs are unavailable. Batch execution runs a saved notebook revision.'}</span></div></article>)}<div className="add-cell-row"><span /><button className="button secondary compact" onClick={() => setDraft({ ...draft, cells: [...draft.cells, { id: crypto.randomUUID(), language: draft.kind === 'sql' ? 'sql' : 'python', source: '' }] })} disabled={saving}><Plus size={13} />Add cell</button><span /></div><SQLQuery workspaceId={workspace.id} document={draft} blockedReason={conflict ? 'Resolve the newer saved revision before submitting SQL.' : saving || opening ? 'Wait for the document operation to finish.' : dirty ? 'Save your changes before submitting a new query.' : ''} onUnresolved={setQueryUnresolved} onRevisionConflict={() => { setConflict(true); setError('The saved SQL cell changed before this query was accepted. Reload and review the saved revision before submitting again.'); }} /></div>
+      {publicationContext && <div className="editor-notice notice"><p>Opened from {targetName(publicationContext.target)} · verified Delta version {publicationContext.verifiedDeltaVersion}. This SQL reads the latest compatible table state, including later appends. Review and save the draft before running; nothing was executed automatically.</p></div>}
+      <div className="cells-scroll">{draft.cells.map((cell, index) => <article className="notebook-cell" key={cell.id} aria-label={`Cell ${index + 1}`}><div className="cell-heading"><div><span className="cell-number">{String(index + 1).padStart(2, '0')}</span><select aria-label={`Cell ${index + 1} language`} value={cell.language} onChange={(e) => editCell(cell.id, { language: e.target.value as Cell['language'] })} disabled={saving}><option value="python">Python</option><option value="sql">SQL</option></select></div><div><span className="cell-hint">Cell execution not tracked</span><button className="icon-button" aria-label={`Remove cell ${index + 1}`} disabled={draft.cells.length < 2 || saving} onClick={() => setDraft({ ...draft, cells: draft.cells.filter((item) => item.id !== cell.id) })}><Trash2 size={14} /></button></div></div><CodeMirror aria-label={`Cell ${index + 1} code`} value={cell.source} extensions={[cell.language === 'sql' ? sql() : python()]} onChange={(source) => editCell(cell.id, { source })} minHeight="142px" editable={!saving && !opening} basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true, autocompletion: true }} /><div className="cell-assistant-action"><button className="button ghost compact" disabled={dirty || saving || opening || conflict || !draft.id} aria-label={`Ask Sylon about cell ${index + 1}`} title={dirty ? 'Save this document before selecting assistant context.' : 'Review an assistant request with this exact saved cell.'} onClick={() => { if (draft.id && draft.revision) openSylon({ notebook: { id: draft.id, revision: draft.revision, cellId: cell.id }, prompt: 'Explain this cell and suggest improvements.', nonce: crypto.randomUUID() }); }}><SylonMark size={14} />Ask Sylon</button></div><div className="cell-footer"><Play size={11} /><span>{cell.language === 'sql' ? 'Run this saved SQL cell below. Results remain private to your identity.' : 'Cell outputs are unavailable. Batch execution runs a saved notebook revision.'}</span></div></article>)}<div className="add-cell-row"><span /><button className="button secondary compact" onClick={() => setDraft({ ...draft, cells: [...draft.cells, { id: crypto.randomUUID(), language: draft.kind === 'sql' ? 'sql' : 'python', source: '' }] })} disabled={saving}><Plus size={13} />Add cell</button><span /></div><SQLQuery workspaceId={workspace.id} document={draft} preferredBinding={publicationContext ? { id: publicationContext.sql.bindingId, policyVersion: publicationContext.sql.policyVersion, catalog: publicationContext.target.catalog, schema: publicationContext.target.schema } : undefined} blockedReason={conflict ? 'Resolve the newer saved revision before submitting SQL.' : saving || opening ? 'Wait for the document operation to finish.' : dirty ? 'Save your changes before submitting a new query.' : ''} onUnresolved={setQueryUnresolved} onRevisionConflict={() => { setConflict(true); setError('The saved SQL cell changed before this query was accepted. Reload and review the saved revision before submitting again.'); }} /></div>
       <div className="editor-statusbar"><span><Code2 size={13} />{draft.cells.length} {draft.cells.length === 1 ? 'cell' : 'cells'}</span><span>{draft.id ? 'Saved to workspace API' : 'New document'}<span className="status-divider">/</span>Results stay separate from this document</span></div>
     </>}</section>
   </div>;

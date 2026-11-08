@@ -157,3 +157,8 @@ dataslate sylon apply --workspace ws-team --id syl-example --notebook nb-orders 
 Apply updates source once; it never executes SQL or Spark. Use an explicit `query submit` or `run submit-notebook` on the resulting saved revision when ready to execute. An intervening edit causes a revision conflict. `sylon cancel` requests cancellation/discard; a provider request already dispatched may still be processed or billed. An `unknown` watch outcome exits nonzero and does not generate another paid call. `sylon delete --conversation ...` erases the owned conversation and prevents late publication, including after binding revocation; it does not erase data already transferred to a provider.
 
 Optional message contexts use `catalogs:[{bindingId,namespace,name}]` and `search:{bindingId,query,mode}`. The platform restricts them to current approved sources and transfer policies. Credentials, provider endpoints and arbitrary source text are never accepted as context fields. Keep message/answer files private when they contain sensitive data.
+
+
+## Verified Delta publication
+
+Use `run outcome`, `publication bindings/create/get/list/watch`, and `table list/get` to carry a verified ingestion output into governed SQL. Registration acceptance is not publication success. Persist the exact run, binding and key for recovery; no command silently reruns ingestion or registration. See the [UI, CLI and Python walkthrough](../docs/implementation/publication-clients.md).

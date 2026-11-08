@@ -1,0 +1,162 @@
+{{- if .Values.publication.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dataslate.fullname" . }}-publication
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+data:
+  bindings.json: {{ include "dataslate.publicationBindings" . | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "dataslate.fullname" . }}-publication-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dataslate.fullname" . }}-publication-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.publication.controller.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: publication-controller
+  template:
+    metadata:
+      labels:
+        {{- include "dataslate.selector" . | nindent 8 }}
+        app.kubernetes.io/component: publication-controller
+      annotations:
+        checksum/execution: {{ .Values.execution | toJson | sha256sum }}
+        checksum/sql: {{ .Values.sql | toJson | sha256sum }}
+        checksum/publication: {{ .Values.publication | toJson | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "dataslate.fullname" . }}-publication-controller
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        {{- include "dataslate.podSecurityContext" . | nindent 8 }}
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      {{- include "dataslate.scheduling" . | nindent 6 }}
+      containers:
+        - name: publication-controller
+          image: {{ include "dataslate.image" .Values.publication.controller.image | quote }}
+          imagePullPolicy: {{ .Values.publication.controller.image.pullPolicy }}
+          securityContext:
+            {{- include "dataslate.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 8085, protocol: TCP}
+          env:
+            - {name: DATASLATE_PUBLICATION_CONTROLLER_ADDR, value: "0.0.0.0:8085"}
+            - {name: DATASLATE_PUBLICATION_BINDINGS_FILE, value: /etc/dataslate/publication/bindings.json}
+            - {name: DATASLATE_EXECUTION_BINDINGS_FILE, value: /etc/dataslate/execution/bindings.json}
+            - {name: DATASLATE_SQL_BINDINGS_FILE, value: /etc/dataslate/sql/bindings.json}
+            {{- include "dataslate.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.publication.controller.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 3
+          volumeMounts:
+            - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            - {name: execution, mountPath: /etc/dataslate/execution, readOnly: true}
+            - {name: sql, mountPath: /etc/dataslate/sql, readOnly: true}
+            - {name: publication, mountPath: /etc/dataslate/publication, readOnly: true}
+            {{- range .Values.publication.credentials }}
+            - name: publication-credential-{{ .id }}
+              mountPath: {{ printf "/etc/dataslate/publication-credentials/%s" .id | quote }}
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: execution
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-execution
+        - name: sql
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-sql
+        - name: publication
+          configMap:
+            name: {{ include "dataslate.fullname" . }}-publication
+        {{- range .Values.publication.credentials }}
+        - name: publication-credential-{{ .id }}
+          projected:
+            defaultMode: 0440
+            sources:
+              - secret:
+                  name: {{ .tokenSecret.name | quote }}
+                  items:
+                    - {key: {{ .tokenSecret.key | quote }}, path: token}
+              {{- if .caSecret }}
+              - secret:
+                  name: {{ .caSecret.name | quote }}
+                  items:
+                    - {key: {{ .caSecret.key | quote }}, path: ca.crt}
+              {{- end }}
+        {{- end }}
+        {{- include "dataslate.databaseVolume" . | nindent 8 }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "dataslate.fullname" . }}-publication-controller
+  labels:
+    {{- include "dataslate.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "dataslate.selector" . | nindent 6 }}
+      app.kubernetes.io/component: publication-controller
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodLabels | nindent 14 }}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to:
+        {{- if eq .Values.postgres.mode "managed" }}
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ include "dataslate.postgresName" . }}
+        {{- else }}
+        {{- range .Values.networkPolicy.postgresEgressCidrs }}
+        - ipBlock: {cidr: {{ . | quote }}}
+        {{- end }}
+        {{- end }}
+      ports: [{protocol: TCP, port: {{ .Values.networkPolicy.postgresPort }}}]
+    {{- range .Values.publication.engineEgress }}
+    - to:
+        - ipBlock: {cidr: {{ .cidr | quote }}}
+      ports: [{protocol: TCP, port: {{ .port }}}]
+    {{- end }}
+{{- end }}
+{{- end }}

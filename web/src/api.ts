@@ -21,7 +21,7 @@ export interface ExecutionRun {
   id: string; workspaceId: string; bindingId: string; revision: number; createdAt: string; updatedAt: string; observedAt?: string;
   submittedBy: { issuer: string; subject: string }; profile: ExecutionProfile; state: RunState; cancelRequested: boolean;
   kubernetesName: string; kubernetesUid?: string; message: string; events: RunEvent[]; eventsTruncated: boolean;
-  notebook?: NotebookSnapshot; ingestion?: IngestionSnapshot; writerReleased?: boolean; sourceArtifact?: { name: string; uid?: string; state: 'pending' | 'ready' | 'cleanup_pending' | 'deleted' };
+  notebook?: NotebookSnapshot; ingestion?: IngestionSnapshot; writerReleased?: boolean; ingestionOutcome?: { state: 'pending' | 'verified' | 'unavailable'; reasonCode?: string }; sourceArtifact?: { name: string; uid?: string; state: 'pending' | 'ready' | 'cleanup_pending' | 'deleted' };
 }
 export interface RunIntent { bindingId: string; idempotencyKey: string; notebook?: NotebookSelection; pipeline?: PipelineSelection }
 export interface RunLogs { text: string; truncated: boolean }

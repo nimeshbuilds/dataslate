@@ -120,6 +120,12 @@ func (c *Client) manifest(r platform.Run) (application, error) {
 	}
 	spec["executorSpec"] = restrictedTemplate("executor", false)
 	if r.Profile.Kind() == platform.FileIngestionBatch {
+		if r.IngestionOutcome != nil {
+			driver := spec["driverSpec"].(map[string]any)["podTemplateSpec"].(map[string]any)["spec"].(map[string]any)
+			container := driver["containers"].([]any)[0].(map[string]any)
+			container["terminationMessagePath"] = "/dev/termination-log"
+			container["terminationMessagePolicy"] = "File"
+		}
 		conf["spark.kubernetes.driver.label.dataslate.io/run"] = r.ID
 		conf["spark.kubernetes.executor.label.dataslate.io/run"] = r.ID
 		for _, role := range []string{"driverSpec", "executorSpec"} {
@@ -128,6 +134,9 @@ func (c *Client) manifest(r platform.Run) (application, error) {
 	}
 	spec["deploymentMode"] = "ClusterMode"
 	spec["applicationTolerations"] = map[string]any{"resourceRetainPolicy": "OnFailure", "resourceRetainDurationMillis": 3600000, "ttlAfterStopMillis": 86400000, "restartConfig": map[string]any{"restartPolicy": "Never", "maxRestartAttempts": 0, "restartCounterResetMillis": -1}}
+	if r.IngestionOutcome != nil {
+		spec["applicationTolerations"].(map[string]any)["resourceRetainPolicy"] = "Always"
+	}
 	// JSON normalization is required because API decoding uses float64 numbers/maps.
 	encoded, _ := json.Marshal(spec)
 	if err = json.Unmarshal(encoded, &spec); err != nil {

@@ -55,6 +55,8 @@ jobs:
           go build -o "$RUNNER_TEMP/dataslate-memory-workspace" ./.qa/memory-workspace
       - name: SQL controller image build
         run: docker build -f api/SQLControllerDockerfile -t dataslate-sql-controller:ci api
+      - name: Publication controller image build
+        run: docker build -f api/PublicationControllerDockerfile -t dataslate-publication-controller:ci api
       - name: Search controller image build
         run: docker build -f api/SearchControllerDockerfile -t dataslate-search-controller:ci api
       - name: Sylon controller image build

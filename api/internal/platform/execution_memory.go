@@ -154,6 +154,9 @@ func (s *MemoryStore) AdvanceRun(_ context.Context, lease RunLease, u RunUpdate)
 		return Run{}, err
 	}
 	entry.Run = r
+	if u.IngestionOutcome != nil {
+		s.ingestionOutcomes[r.ID] = cloneOutcome(*u.IngestionOutcome)
+	}
 	if !u.RetainLease {
 		entry.Owner = ""
 		entry.Until = time.Time{}
@@ -171,4 +174,21 @@ func (s *MemoryStore) RunSource(ctx context.Context, ws, id string, subject Exec
 		return RunSource{}, ErrNotFound
 	}
 	return *r.Source, nil
+}
+
+func (s *MemoryStore) IngestionOutcome(_ context.Context, ws, id string, owner ExecutionSubject) (IngestionOutcome, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	entry, ok := s.executions[id]
+	if !ok || entry.Run.WorkspaceID != ws || entry.Run.SubmittedBy != owner || entry.Run.Ingestion == nil {
+		return IngestionOutcome{}, ErrNotFound
+	}
+	if o, ok := s.ingestionOutcomes[id]; ok {
+		return cloneOutcome(o), nil
+	}
+	state := IngestionOutcomeSummary{State: "unavailable", ReasonCode: "legacy_runtime_contract"}
+	if entry.Run.IngestionOutcome != nil {
+		state = *entry.Run.IngestionOutcome
+	}
+	return IngestionOutcome{RunID: id, WorkspaceID: ws, IngestionOutcomeSummary: state}, nil
 }

@@ -3,31 +3,33 @@ import { Activity, Boxes, Clock3, FileCode2, History, Play, RefreshCw, ShieldChe
 import { api, ApiError, message } from './api';
 import type { ExecutionBinding, ExecutionProfile, ExecutionRun, RunIntent, RunLogs, RunState, Workspace } from './api';
 import { SparkPreview } from './Platform';
+import { IngestionOutcomePanel } from './IngestionOutcome';
 import { useAuth } from './auth';
 import { forgetSubmission, restoredSubmission, runIntentKey, validRunReceipt } from './execution';
 import { EmptyState, ErrorNotice, Modal, Pill, Spinner } from './ui';
 
 const terminal = (state: RunState) => ['succeeded', 'failed', 'cancelled'].includes(state);
-const needsObservation = (run: ExecutionRun) => !terminal(run.state) || Boolean(run.sourceArtifact && run.sourceArtifact.state !== 'deleted') || Boolean(run.ingestion && !run.writerReleased);
+const needsObservation = (run: ExecutionRun) => !terminal(run.state) || Boolean(run.sourceArtifact && run.sourceArtifact.state !== 'deleted') || Boolean(run.ingestion && !run.writerReleased) || run.ingestionOutcome?.state === 'pending';
 const stateLabel = (state: RunState) => state.replaceAll('_', ' ');
 function date(value?: string) { return value ? new Date(value).toLocaleString() : 'Not observed yet'; }
 
-export function ComputeWorkspace({ workspace, onDirty, initialRunId }: { workspace?: Workspace; onDirty: (dirty: boolean) => void; initialRunId?: string }) {
+export function ComputeWorkspace({ workspace, onDirty, initialRunId, openSql }: { workspace?: Workspace; onDirty: (dirty: boolean) => void; initialRunId?: string; openSql: (tableId: string) => void }) {
   const auth = useAuth();
   const [tab, setTab] = useState<'runs' | 'preview'>('runs');
   return <div className="compute-page"><div className="page-tabs" role="tablist" aria-label="Compute">
     <button id="runs-tab" role="tab" aria-controls="runs-panel" aria-selected={tab === 'runs'} onClick={() => setTab('runs')}>Application runs</button>
     <button id="preview-tab" role="tab" aria-controls="preview-panel" aria-selected={tab === 'preview'} onClick={() => setTab('preview')}>Manifest preview</button>
   </div><section id="runs-panel" role="tabpanel" aria-labelledby="runs-tab" hidden={tab !== 'runs'}>
-    {workspace ? <Runs key={JSON.stringify([auth.config?.issuer, auth.user?.profile.sub, workspace.id])} workspace={workspace} active={tab === 'runs'} onDirty={onDirty} initialRunId={initialRunId} /> : <EmptyState icon={<Boxes size={27} />} title="Select a workspace first" description="Your application runs and approved execution bindings belong to a workspace." />}
+    {workspace ? <Runs key={JSON.stringify([auth.config?.issuer, auth.user?.profile.sub, workspace.id])} workspace={workspace} active={tab === 'runs'} onDirty={onDirty} initialRunId={initialRunId} openSql={openSql} /> : <EmptyState icon={<Boxes size={27} />} title="Select a workspace first" description="Your application runs and approved execution bindings belong to a workspace." />}
   </section><section id="preview-panel" role="tabpanel" aria-labelledby="preview-tab" hidden={tab !== 'preview'}>{tab === 'preview' && <SparkPreview key={workspace?.id} workspace={workspace} />}</section></div>;
 }
 
-function Runs({ workspace, active, onDirty, initialRunId }: { workspace: Workspace; active: boolean; onDirty: (dirty: boolean) => void; initialRunId?: string }) {
+function Runs({ workspace, active, onDirty, initialRunId, openSql }: { workspace: Workspace; active: boolean; onDirty: (dirty: boolean) => void; initialRunId?: string; openSql: (tableId: string) => void }) {
   const auth = useAuth();
   const memberships = auth.user?.profile.dataslate_workspaces;
   const role = memberships && typeof memberships === 'object' ? (memberships as Record<string, unknown>)[workspace.id] : undefined;
   const canCancel = auth.config?.mode === 'development' || role === 'editor' || role === 'admin';
+  const [publicationDirty, setPublicationDirty] = useState(false);
   const [bindings, setBindings] = useState<ExecutionBinding[]>([]);
   const [bindingId, setBindingId] = useState('');
   const [runs, setRuns] = useState<ExecutionRun[]>([]);
@@ -61,7 +63,7 @@ function Runs({ workspace, active, onDirty, initialRunId }: { workspace: Workspa
     const controller = new AbortController(); lifecycle.current = controller;
     return () => { controller.abort(); logRequest.current?.abort(); };
   }, []);
-  useEffect(() => { onDirty(Boolean(intent)); return () => onDirty(false); }, [intent, onDirty]);
+  useEffect(() => { onDirty(Boolean(intent) || publicationDirty); return () => onDirty(false); }, [intent, publicationDirty, onDirty]);
   useEffect(() => {
     if (initialRunId && selected?.id === initialRunId) { details.current?.focus({ preventScroll: true }); details.current?.scrollIntoView({ block: 'start' }); }
   }, [initialRunId, selected?.id]);
@@ -174,6 +176,7 @@ function Runs({ workspace, active, onDirty, initialRunId }: { workspace: Workspa
     {selected && <section ref={details} tabIndex={-1} className="run-detail" aria-label="Run details"><div className="run-detail-heading"><div><span className="eyebrow">RECORDED EXECUTION</span><h2>{selected.id}</h2></div><RunStatus state={selected.state} />{canCancel && !terminal(selected.state) && <button className="button secondary compact" disabled={selected.cancelRequested || cancelling} onClick={() => { setCancelError(''); setConfirmation(selected); }}><Square size={13} />{selected.cancelRequested ? 'Cancellation requested' : 'Cancel run'}</button>}</div>
       <div className={`notice ${selected.state === 'unknown' || (selected.cancelRequested && !terminal(selected.state)) ? 'warning' : ''}`}><Activity size={17} /><div><p>{selected.message || 'Waiting for the execution controller to observe the application.'}</p>{selected.state === 'unknown' && <p>The backend outcome is unknown. Reconciliation must determine what happened; do not launch a replacement to recover this run.</p>}{selected.cancelRequested && !terminal(selected.state) && <p>Cancellation has been requested. The workload is not confirmed stopped until the controller observes cancellation.</p>}</div></div>
       <div className="run-detail-grid"><div>{selected.notebook && <><h3><FileCode2 size={16} />Saved notebook snapshot</h3><dl className="run-profile"><dt>Notebook</dt><dd>{selected.notebook.id}</dd><dt>Saved revision</dt><dd>{selected.notebook.revision}</dd><dt>Source SHA-256</dt><dd><code>{selected.notebook.sha256}</code></dd><dt>Snapshot</dt><dd>{selected.notebook.cellIds.length} Python cells · {selected.notebook.bytes.toLocaleString()} bytes</dd><dt>Source artifact</dt><dd>{selected.sourceArtifact?.state.replaceAll('_', ' ') ?? 'Not recorded'}</dd></dl><p className="run-launch-note">This run uses the saved snapshot recorded at acceptance. Later notebook edits do not change its source. Cell outputs are not available for batch runs.</p></>}{selected.ingestion && <><h3><FileCode2 size={16} />Saved ingestion snapshot</h3><dl className="run-profile"><dt>Pipeline</dt><dd>{selected.ingestion.id}</dd><dt>Saved revision</dt><dd>{selected.ingestion.revision}</dd><dt>Source SHA-256</dt><dd><code>{selected.ingestion.sha256}</code></dd><dt>Generated source</dt><dd>{selected.ingestion.bytes.toLocaleString()} bytes</dd><dt>Source location</dt><dd>{selected.ingestion.sourceUri}</dd><dt>Delta destination</dt><dd>{selected.ingestion.destinationUri}</dd><dt>Checkpoint</dt><dd>{selected.ingestion.checkpointUri}</dd><dt>Source artifact</dt><dd>{selected.sourceArtifact?.state.replaceAll('_', ' ') ?? 'Not recorded'}</dd><dt>Writer reservation</dt><dd>{selected.writerReleased ? 'Released' : 'Held until workload cleanup is observed'}</dd></dl><p className="run-launch-note">This run uses the source and locations captured at acceptance. Later definition changes do not alter it. A terminal run may retain its writer reservation while Kubernetes cleanup is reconciled.</p></>}<h3><FileCode2 size={16} />Immutable runtime</h3><ExecutionProfileView profile={selected.profile} /><dl className="run-profile"><dt>Kubernetes application</dt><dd>{selected.kubernetesName || 'Not assigned'}</dd><dt>Resource UID</dt><dd>{selected.kubernetesUid || 'Not observed yet'}</dd></dl></div><div><h3><Clock3 size={16} />Lifecycle</h3><dl className="run-profile"><dt>Created</dt><dd><time dateTime={selected.createdAt}>{date(selected.createdAt)}</time></dd><dt>Record updated</dt><dd><time dateTime={selected.updatedAt}>{date(selected.updatedAt)}</time></dd><dt>Backend observed</dt><dd>{selected.observedAt ? <time dateTime={selected.observedAt}>{date(selected.observedAt)}</time> : 'Not observed yet'}</dd><dt>Revision</dt><dd>{selected.revision}</dd></dl><ol className="run-events">{selected.events?.map((event, index) => <li key={`${event.at}-${index}`}><span className="run-event-marker" /><div><strong>{stateLabel(event.state)}</strong><time dateTime={event.at}>{date(event.at)}</time><p>{event.message}</p></div></li>)}</ol>{selected.eventsTruncated && <p className="run-launch-note">Earlier events were omitted. This is the most recent recorded lifecycle history.</p>}{!selected.events?.length && <p className="muted run-launch-note">No lifecycle events have been recorded.</p>}</div></div>
+      {selected.ingestion && active && <IngestionOutcomePanel key={selected.id} workspaceId={workspace.id} run={selected} onDirty={setPublicationDirty} openSql={openSql} />}
       <div className="run-log-heading"><h3><Terminal size={16} />Driver logs</h3><button className="button secondary compact" onClick={() => void loadLogs()} disabled={logsPending}>{logsPending ? <Spinner label="Reading logs…" /> : logs ? 'Refresh logs' : 'Load logs'}</button></div>{logError && <ErrorNotice>{logError}</ErrorNotice>}{logs ? <><pre className="run-logs">{logs.text || 'The backend returned no log content.'}</pre>{logs.truncated && <p className="run-launch-note">This response is truncated. It does not contain the complete driver log.</p>}</> : !logError && <p className="run-launch-note">Logs are fetched separately under your run permissions. Availability depends on the configured backend adapter.</p>}
       <div className="notice run-results-note"><ShieldCheck size={16} /><p>A successful Spark lifecycle does not validate the data it wrote. Governed result delivery, interactive notebook sessions, rich cell outputs and data-quality checks require their own integrations.</p></div>
     </section>}

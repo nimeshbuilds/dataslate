@@ -1,0 +1,66 @@
+{{- if .Values.publication.enabled -}}
+{{- if not (and .Values.execution.enabled .Values.sql.enabled) -}}{{- fail "Publication requires execution.enabled and sql.enabled for current policy rechecks" -}}{{- end -}}
+{{- if and .Values.networkPolicy.enabled (empty .Values.publication.engineEgress) -}}{{- fail "Publication requires explicit publication.engineEgress destinations" -}}{{- end -}}
+{{- $root := . -}}
+{{- $credentials := dict -}}
+{{- $readerSecrets := dict -}}
+{{- range .Values.sql.credentials -}}{{- $_ := set $readerSecrets (printf "%s/%s" .tokenSecret.name .tokenSecret.key) true -}}{{- end -}}
+{{- range .Values.publication.credentials -}}
+{{- if hasKey $credentials .id -}}{{- fail "Publication credential IDs must be unique" -}}{{- end -}}
+{{- if hasKey $readerSecrets (printf "%s/%s" .tokenSecret.name .tokenSecret.key) -}}{{- fail "Publication and SQL credentials must use separate token Secret keys" -}}{{- end -}}
+{{- $_ := set $credentials .id true -}}
+{{- end -}}
+{{- $execution := dict -}}{{- range .Values.execution.bindings -}}{{- $_ := set $execution (printf "%s/%s" .workspaceId .id) . -}}{{- end -}}
+{{- $sql := dict -}}{{- range .Values.sql.bindings -}}{{- $_ := set $sql (printf "%s/%s" .workspaceId .id) . -}}{{- end -}}
+{{- $ids := dict -}}{{- $targets := dict -}}
+{{- range .Values.publication.bindings -}}
+{{- $binding := . -}}
+{{- $endpoint := trimSuffix "/" .endpoint -}}
+{{- $key := printf "%s/%s" .workspaceId .id -}}
+{{- if hasKey $ids $key -}}{{- fail "Publication binding IDs must be unique within a workspace" -}}{{- end -}}
+{{- $_ := set $ids $key true -}}
+{{- if eq (trim .name) "" -}}{{- fail "Publication binding name must not be blank" -}}{{- end -}}
+{{- if not (hasKey $credentials .credentialsId) -}}{{- fail "Publication binding credentialsId must reference publication.credentials" -}}{{- end -}}
+{{- $target := printf "%s/%s/%s/%s" (lower $endpoint) (lower .catalog) (lower .schema) (lower .table) -}}
+{{- if hasKey $targets $target -}}{{- fail "Publication engine targets must be unique across workspaces" -}}{{- end -}}
+{{- $_ := set $targets $target true -}}
+{{- $writer := get $execution (printf "%s/%s" .workspaceId .executionBindingId) -}}
+{{- if not $writer -}}{{- fail "Publication executionBindingId must reference the same workspace" -}}{{- end -}}
+{{- if ne $writer.executionKind "file-ingestion-batch" -}}{{- fail "Publication requires a file-ingestion-batch execution binding" -}}{{- end -}}
+{{- range $root.Values.execution.bindings -}}
+{{- if and (eq .namespace $writer.namespace) (ne .executionKind "file-ingestion-batch") -}}{{- fail "Publication ingestion requires a dedicated namespace without other execution kinds" -}}{{- end -}}
+{{- end -}}
+{{- $allowedLocation := false -}}
+{{- range $writer.ingestionStorage.writePrefixes -}}{{- if hasPrefix . $binding.destinationUri -}}{{- $allowedLocation = true -}}{{- end -}}{{- end -}}
+{{- if not $allowedLocation -}}{{- fail "Publication destinationUri must be within the execution write prefixes" -}}{{- end -}}
+{{- range $root.Values.sql.bindings -}}
+{{- if eq (trimSuffix "/" .endpoint) $endpoint -}}
+{{- range .allowedSubjects -}}{{- if eq .engineUser $binding.engineUser -}}{{- fail "Publication engineUser must differ from every SQL reader on the engine" -}}{{- end -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- $publishers := dict -}}
+{{- range .allowedPublishers -}}
+{{- if ne .issuer $root.Values.oidc.issuer -}}{{- fail "Publication publisher issuers must match oidc.issuer" -}}{{- end -}}
+{{- $subject := printf "%s/%s" .issuer .subject -}}
+{{- if hasKey $publishers $subject -}}{{- fail "Publication publishers must be unique" -}}{{- end -}}{{- $_ := set $publishers $subject true -}}
+{{- $granted := false -}}{{- $candidate := . -}}
+{{- range $writer.allowedSubjects -}}{{- if and (eq .issuer $candidate.issuer) (eq .subject $candidate.subject) -}}{{- $granted = true -}}{{- end -}}{{- end -}}
+{{- if not $granted -}}{{- fail "Publication publishers must have an explicit execution grant" -}}{{- end -}}
+{{- end -}}
+{{- $readers := dict -}}
+{{- range .readers -}}
+{{- if ne .issuer $root.Values.oidc.issuer -}}{{- fail "Publication reader issuers must match oidc.issuer" -}}{{- end -}}
+{{- $subject := printf "%s/%s" .issuer .subject -}}
+{{- if hasKey $readers $subject -}}{{- fail "Publication readers must be unique" -}}{{- end -}}{{- $_ := set $readers $subject true -}}
+{{- $query := get $sql (printf "%s/%s" $binding.workspaceId .sqlBindingId) -}}
+{{- if not $query -}}{{- fail "Publication reader sqlBindingId must reference the same workspace" -}}{{- end -}}
+{{- if or (ne (trimSuffix "/" $query.endpoint) $endpoint) (ne $query.catalog $binding.catalog) (ne $query.schema $binding.schema) -}}{{- fail "Publication reader SQL binding must match endpoint, catalog and schema" -}}{{- end -}}
+{{- $granted := false -}}{{- $candidate := . -}}
+{{- range $query.allowedSubjects -}}{{- if and (eq .issuer $candidate.issuer) (eq .subject $candidate.subject) -}}{{- $granted = true -}}{{- end -}}{{- end -}}
+{{- if not $granted -}}{{- fail "Publication readers must have an explicit SQL grant" -}}{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if gt (len (include "dataslate.publicationBindings" .)) 1048576 -}}{{- fail "Publication bindings exceed the 1 MiB configuration limit" -}}{{- end -}}
+{{- else -}}
+{{- if or .Values.publication.bindings .Values.publication.credentials -}}{{- fail "Publication bindings and credentials require publication.enabled=true" -}}{{- end -}}
+{{- end -}}

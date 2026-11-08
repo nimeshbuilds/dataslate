@@ -176,3 +176,21 @@ sylon:
     resources:
       requests: {cpu: 100m, memory: 128Mi}
       limits: {cpu: "1", memory: 512Mi}
+
+# Register verified Delta outputs through an explicitly approved Hive/Glue Trino catalog.
+# Publication identities own exact targets and stay separate from read-only query identities.
+publication:
+  enabled: false
+  bindings: []
+  credentials: []
+  engineEgress: []
+  controller:
+    replicas: 2
+    image:
+      repository: dataslate-publication-controller
+      tag: 0.1.0-foundation
+      digest: ""
+      pullPolicy: IfNotPresent
+    resources:
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: "1", memory: 512Mi}

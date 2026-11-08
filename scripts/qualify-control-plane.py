@@ -105,13 +105,15 @@ def main():
     sql("CREATE TABLE dataslate_denied_ddl_probe(id integer)", runtime_role=True, failure=True)
     sql("DELETE FROM dataslate_schema_migrations WHERE false", runtime_role=True, failure=True)
     results = []
-    for kind in ("sql", "search", "sylon"):
+    for kind in ("sql", "search", "sylon", "publication"):
         binary = args.binaries / f"dataslate-{kind}-controller"
         selected_port = port()
         prefix = "DATASLATE_" + kind.upper()
         env = {**base_env, "DATASLATE_DATABASE_URL": fixture["runtimeURL"],
                prefix + "_BINDINGS_FILE": str(empty.resolve()),
                prefix + "_CONTROLLER_ADDR": f"127.0.0.1:{selected_port}"}
+        if kind == "publication":
+            env.update(DATASLATE_EXECUTION_BINDINGS_FILE=str(empty.resolve()), DATASLATE_SQL_BINDINGS_FILE=str(empty.resolve()))
         for attempt in range(2):
             log_path = args.output_dir / f"{kind}-{attempt}.log"
             with log_path.open("w") as log:

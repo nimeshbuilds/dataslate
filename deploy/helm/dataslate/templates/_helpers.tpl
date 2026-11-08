@@ -323,3 +323,23 @@ affinity:
 {{- $out := list -}}{{- range .Values.catalog.credentials -}}{{- if hasKey $ids .id -}}{{- $out = append $out . -}}{{- end -}}{{- end -}}
 {{- $out | toJson -}}
 {{- end -}}
+
+{{- define "dataslate.publicationBindings" -}}
+{{- $credentials := dict -}}
+{{- range .Values.publication.credentials -}}
+{{- $_ := set $credentials .id . -}}
+{{- end -}}
+
+{{- $bindings := list -}}
+{{- range .Values.publication.bindings -}}
+{{- $credential := get $credentials .credentialsId -}}
+{{- if not $credential -}}{{- fail "Publication binding credentialsId must reference an entry in publication.credentials" -}}{{- end -}}
+{{- $binding := omit . "credentialsId" -}}
+{{- $_ := set $binding "tokenFile" (printf "/etc/dataslate/publication-credentials/%s/token" .credentialsId) -}}
+{{- if $credential.caSecret -}}
+{{- $_ := set $binding "caFile" (printf "/etc/dataslate/publication-credentials/%s/ca.crt" .credentialsId) -}}
+{{- end -}}
+{{- $bindings = append $bindings $binding -}}
+{{- end -}}
+{{- $bindings | toJson -}}
+{{- end -}}

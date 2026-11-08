@@ -9,7 +9,7 @@ import dataslate_ingestion as runtime
 
 
 def spec():
-    return {'version': 1, 'pipelineId': 'pipe-123', 'pipelineRevision': 1, 'runId': 'run-123',
+    return {'version': 1, 'pipelineId': 'pipe-123', 'pipelineRevision': 1, 'runId': 'run-123', 'receiptBindingSha256': 'a'*64,
             'source': {'format': 'json', 'uri': 's3://example-bucket/raw/orders/', 'schema': [
                 {'name': 'id', 'type': 'long', 'nullable': False}, {'name': 'name', 'type': 'string', 'nullable': True}]},
             'destination': {'uri': 's3://example-bucket/tables/orders/'},

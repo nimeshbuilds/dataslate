@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "receiptBindingSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "pipelineId": "pipeline-orders",
   "runId": "run-example",
   "pipelineRevision": 1,

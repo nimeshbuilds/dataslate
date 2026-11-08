@@ -12,6 +12,7 @@ import math
 import os
 import re
 import sys
+import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit, unquote
 
@@ -19,6 +20,7 @@ SPARK_VERSION = "4.1.3"
 DELTA_VERSION = "4.3.1"
 DELTA_JAR_SHA256 = "ebf35a4383f0a653c3ee3c7882c0edcac2f846be31ac61af4b96ccfaaf36c171"
 RECEIPT_PREFIX = "DATASLATE_INGESTION_RECEIPT "
+RECEIPT_LIMIT = 4096
 CONTRACT_FILE = "_dataslate_contract.json"
 IDENTITY_FILE = "_dataslate_stream_identity.json"
 TYPES = {"string", "long", "double", "boolean", "date", "timestamp"}
@@ -64,9 +66,11 @@ def canonical_uri(value: str, *, allow_local_files=False) -> str:
 
 
 def validate_spec(value: dict, *, allow_local_files=False) -> dict:
-    _exact(value, {"version", "pipelineId", "runId", "pipelineRevision", "source", "destination", "checkpointUri", "maxFilesPerTrigger", "timeoutSeconds"})
+    _exact(value, {"version", "pipelineId", "runId", "pipelineRevision", "source", "destination", "checkpointUri", "maxFilesPerTrigger", "timeoutSeconds", "receiptBindingSha256"})
     if value["version"] != 1 or type(value["version"]) is not int:
         raise IngestionError("unsupported_spec_version")
+    if not isinstance(value["receiptBindingSha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", value["receiptBindingSha256"]):
+        raise IngestionError("invalid_receipt_binding")
     for name in ("pipelineId", "runId"):
         if not isinstance(value[name], str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", value[name]):
             raise IngestionError("invalid_spec")
@@ -316,7 +320,80 @@ def _json_frame(spark, paths, fields):
     return spark.createDataFrame(rows, schema=_schema(fields), verifySchema=True)
 
 
-def run(value: dict, *, allow_local_files=False):
+def _snapshot_schema_hash(schema_json, fields):
+    """Attest the physical Delta schema, separately from source required values.
+
+    Delta's pinned append writer normalizes fields to nullable. It does not
+    create NOT NULL constraints from the source validation contract.
+    """
+    if not isinstance(schema_json, str) or len(schema_json.encode()) > 65536:
+        raise IngestionError("delta_schema_unverified")
+    try:
+        schema = json.loads(schema_json, object_pairs_hook=_object)
+        _exact(schema, {"type", "fields"}, "delta_schema_unverified")
+        if schema["type"] != "struct" or not isinstance(schema["fields"], list) or len(schema["fields"]) != len(fields):
+            raise IngestionError("delta_schema_unverified")
+        normalized = []
+        for actual, expected in zip(schema["fields"], fields):
+            _exact(actual, {"name", "type", "nullable", "metadata"}, "delta_schema_unverified")
+            if actual["name"] != expected["name"] or actual["type"] != expected["type"] or actual["nullable"] is not True or actual["metadata"] != {}:
+                raise IngestionError("delta_schema_unverified")
+            normalized.append({"name": actual["name"], "type": actual["type"], "nullable": True})
+        return hashlib.sha256(_canonical_json(normalized).encode()).hexdigest()
+    except (ValueError, TypeError, RecursionError):
+        raise IngestionError("delta_schema_unverified") from None
+
+
+def _features(option):
+    names = []
+    if option.isDefined():
+        iterator = option.get().iterator()
+        while iterator.hasNext():
+            name = str(iterator.next())
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{0,63}", name) or len(names) >= 16 or name in names:
+                raise IngestionError("delta_protocol_unverified")
+            names.append(name)
+    return sorted(names)
+
+
+def _delta_snapshot(spark, storage, spec):
+    if not storage.exists(spec["destination"]["uri"] + "_delta_log"):
+        return None
+    # One immutable fresh snapshot prevents mixing metadata from different
+    # versions. This JVM interface is qualified against the SHA-locked Delta jar.
+    snapshot = spark._jvm.org.apache.spark.sql.delta.DeltaLog.forTableWithSnapshot(
+        spark._jsparkSession, spec["destination"]["uri"])._2()
+    version = int(snapshot.version())
+    table_id = str(snapshot.metadata().id())
+    if version < 0 or version > 2**63-1 or str(uuid.UUID(table_id)) != table_id:
+        raise IngestionError("delta_snapshot_unverified")
+    protocol = snapshot.protocol()
+    reader, writer = int(protocol.minReaderVersion()), int(protocol.minWriterVersion())
+    if not _integer(reader, 1, 3) or not _integer(writer, 1, 7):
+        raise IngestionError("delta_protocol_unverified")
+    return {"id": table_id, "version": str(version),
+            "schemaSha256": _snapshot_schema_hash(str(snapshot.metadata().schemaString()), spec["source"]["schema"]),
+            "minReaderVersion": reader, "minWriterVersion": writer,
+            "readerFeatures": _features(protocol.readerFeatures()), "writerFeatures": _features(protocol.writerFeatures())}
+
+
+def _write_receipt(path, receipt):
+    payload = _canonical_json(receipt).encode("utf-8")
+    if len(payload) > RECEIPT_LIMIT:
+        raise IngestionError("receipt_too_large")
+    # Kubernetes mounts a regular termination-message file. Never use a rename
+    # over that mount, follow a symlink, or fall back to an unbounded log tail.
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except (OSError, ValueError, TypeError):
+        raise IngestionError("receipt_write_failed") from None
+
+
+def run(value: dict, *, allow_local_files=False, receipt_path="/dev/termination-log"):
     """Execute one available-now drain. Owns and stops the fresh Spark session.
 
     allow_local_files is for the explicit local qualification harness only;
@@ -324,7 +401,7 @@ def run(value: dict, *, allow_local_files=False):
     """
     spec = validate_spec(value, allow_local_files=allow_local_files)
     spark = query = None
-    receipt = {"version": 1, "pipelineId": spec["pipelineId"], "runId": spec["runId"], "pipelineRevision": spec["pipelineRevision"], "state": "failed", "runtime": {"spark": SPARK_VERSION, "delta": DELTA_VERSION}}
+    receipt = {"version": 2, "pipelineId": spec["pipelineId"], "runId": spec["runId"], "pipelineRevision": spec["pipelineRevision"], "receiptBindingSha256": spec["receiptBindingSha256"], "state": "failed", "runtime": {"spark": SPARK_VERSION, "delta": DELTA_VERSION}, "tableExists": False, "table": None}
     stats = {"completedBatches": 0, "processedFiles": 0, "processedRows": 0, "lastBatchId": None}
     error = None
     try:
@@ -411,9 +488,9 @@ def run(value: dict, *, allow_local_files=False):
             raise IngestionError("ingestion_timeout")
         if query.exception() is not None:
             raise IngestionError("stream_failed")
-        receipt.update(stats)
         receipt["queryId"] = str(query.id)
-        receipt["tableExists"] = storage.exists(spec["destination"]["uri"] + "_delta_log")
+        receipt["table"] = _delta_snapshot(spark, storage, spec)
+        receipt["tableExists"] = receipt["table"] is not None
         receipt["state"] = "succeeded"
     except BaseException as exc:
         error = exc
@@ -428,7 +505,17 @@ def run(value: dict, *, allow_local_files=False):
             receipt["state"] = "failed"
             receipt["errorCode"] = "runtime_stop_uncertain"
             error = error or stop_error
-        # A successful marker is emitted only after termination AND Spark stop.
+        receipt.update({key: str(value) if value is not None else None for key, value in stats.items()})
+        try:
+            # Capture before the controller deletes the terminal driver. The
+            # immutable source/profile plus Pod UID provide provenance; this is
+            # not an independently signed or storage-authenticated document.
+            _write_receipt(receipt_path, receipt)
+        except IngestionError as receipt_error:
+            receipt["state"] = "failed"
+            receipt["errorCode"] = receipt_error.code
+            error = error or receipt_error
+        # A success marker requires termination, Spark stop AND receipt storage.
         print(RECEIPT_PREFIX + _canonical_json(receipt), flush=True)
     if error is not None:
         raise error
