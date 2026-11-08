@@ -4,6 +4,8 @@ DataSlate is a Kubernetes data and AI platform; Sylon is its assistant. This inv
 
 Status vocabulary: **foundation** = resource models and initial code are being built; **planned** = implementation contract exists, backend work outstanding; **integrated** = real backend flow passes automated integration checks; **qualified** = published supported profile passes cloud, security, recovery and performance gates. The first repository implementation is a foundation, not a complete production platform.
 
+The selected first customer workflow is **ingestion → Spark → governed SQL → charts**, on EKS/S3. The [delivery and qualification plan](delivery-plan.md) defines its implementation order, security boundary, acceptance journey and proposed release gates. Broader scope below remains intact.
+
 ## Product and authoring
 
 | Capability | Foundation/component | Required acceptance evidence | Initial track |
@@ -12,10 +14,13 @@ Status vocabulary: **foundation** = resource models and initial code are being b
 | Notebook and SQL source | React/Jupyter/CodeMirror | Save/reopen, conflicts, autosave, source/history, clean scheduled execution | Foundation |
 | Collaborative editing | Jupyter/Yjs | Concurrent changes, reconnect, document permissions without leaking outputs | Planned |
 | Interactive kernels | Jupyter + isolated pods | Attach/reconnect/stop, credential revocation, kernel failure recovery | Planned |
+| Notebook language and utility compatibility | Qualified Python/SQL/Scala/R kernels and native utility APIs | Per-runtime execution, widgets/parameters, files, package isolation and explicit unsupported proprietary APIs | Planned |
 | Table/Visualize/Profile/Execution | Result Service + Arrow + AG Grid + ECharts | Correct full-data aggregates, exact decimals, bounded preview, current result ACL | Foundation UI; backend planned |
 | Dashboards and semantics | Native product modules | Parameters, units, metric lineage, viewer rights, snapshot vs refresh semantics | Planned |
+| Shared business semantic layer | Versioned metric/join/dimension definitions | Consistent metric meaning across SQL, dashboards and Sylon; grain/fan-out, time zone, unit, synonym and policy tests | Planned |
 | Visual pipeline designer | Product graph editor + versioned executable source | Round-trip supported graph/code, validation, compare and promotion | Planned |
 | Git/project bundles | Git + declarative manifests | Reproducible dev/prod promotion with immutable code/environment references | Planned |
+| Infrastructure-as-code and developer integration | Declarative resource provider + IDE/SDK interfaces | Import/state reconciliation, drift, environment promotion, least-privileged automation and rollback contracts | Planned |
 | API, SDK and CLI | OpenAPI + Go/Python clients | Same resources, errors, permissions and optimistic concurrency as UI | Foundation |
 | Accessibility and responsiveness | Shared design system | Keyboard completion, focus order, screen-reader names, narrow viewport | Foundation |
 
@@ -72,7 +77,8 @@ Status vocabulary: **foundation** = resource models and initial code are being b
 | Capability | Foundation/component | Required acceptance evidence | Initial track |
 |---|---|---|---|
 | SSO and team RBAC | OIDC + product authorization | Issuer/audience/signature/expiry, roles, revocation and no fallback identity | Foundation |
-| Row/column policies | Catalog + engine enforcement | SQL/notebook/AI/result/export equivalence; deny raw-file bypass | Planned; critical gate |
+| Identity and group lifecycle | OIDC/SCIM + service-principal administration | Join/change/leave propagation, group mapping, automation identities, bounded revocation and ownership transfer | Planned |
+| Row/column policies | Catalog + engine enforcement | Equivalent enforcement across governed SQL/notebook/AI/result/export paths; deny restricted users raw-storage bypass; separately document privileged engineering access | Planned; critical gate |
 | Classification and policy UI | Product metadata and policy adapter | Versioned changes, effective-policy explanation and enforcement acknowledgement | Planned |
 | Installation/adoption | Helm + preflight/dependency planner | Exact version/API/owner detection, canary, no silent adoption/CRD upgrades | Foundation |
 | Self-contained distribution | Managed qualified dependencies | Complete reproducible installation including optional self-hosted AI profile | Planned; chart foundation |
@@ -82,10 +88,26 @@ Status vocabulary: **foundation** = resource models and initial code are being b
 | Audit and diagnostics | Product events + OTel | Actor/execution identity correlation, safe logs, access control, support bundle | Planned |
 | Backup/restore/upgrade | PostgreSQL + object artifacts + migration controller | Restore to clean cluster, compatible downgrade policy and deletion replay | Planned; migration foundation |
 | Operational PostgreSQL | CNPG/application databases | Resource binding, migrations, credentials and qualified HA/restore | Planned |
+| Advanced operational database lifecycle | Separately qualified storage/compute backend | Isolated writable branches, point-in-time recovery, snapshots, autoscaling/read replicas and pause/resume semantics; CNPG baseline alone does not establish parity | Planned; backend qualification required |
 | Apps | Isolated Python/Node deployments | Build/deploy/auth/egress/resources/logs/rollback under one lifecycle | Planned |
 | Cross-org sharing | Delta Sharing profile | Recipient identity, supported tables, revocation, audit and retention | Planned |
 | Clean rooms | Separate governed collaboration protocol | Threat model, constrained computations, output controls and audited release | Planned |
 | Marketplace | Product catalog/distribution services | Publisher ownership, package verification, entitlement and updates | Planned |
+
+## Adoption, economics and product operations
+
+These capabilities turn backend integration into a product teams can adopt and operate. They are planned work; a successful foundation CI run does not establish them.
+
+| Capability | Foundation/component | Required acceptance evidence | Initial track |
+|---|---|---|---|
+| Workload assessment and migration | Importers + compatibility analyzer + comparison runner | Supported notebook/SQL/job import, explicit unsupported APIs, data reconciliation, parallel run, cutover/recovery and portable export | Planned |
+| BI/dbt client compatibility | Qualified SQL protocol and client adapters | Real-client authentication, catalogs/types, cancellation/timeouts and concurrent workloads against the selected engine | Planned |
+| SQL workload management | Engine admission + product compute policies | Queue/isolation behavior, competing batch/interactive workloads, cold starts, bounded capacity and idle shutdown | Planned |
+| Cost attribution and budgets | Usage ledger + cloud billing/resource measurements | Team/workload/attempt allocation including idle/shared costs; budget actions, retries and total-cost baseline | Planned |
+| Integrated runtime releases | Release bill of materials + OCI/chart registry | Signed immutable artifacts, dependency matrix, SBOM/licenses, vulnerability handling, supported upgrade and deprecation policy | Planned |
+| Qualification evidence | Versioned fixture/correctness/failure benchmark suites | Per-release/profile artifacts for correctness, security, recovery, capacity and known limitations; failing gates block promotion | Planned |
+| Supportability | Health/run timelines + safe diagnostic bundle + runbooks | An operator can identify and recover a deliberate failure without leaked credentials/customer data; explicit escalation and ownership | Planned |
+| Guided onboarding and usability | Installation wizard/preflight + worked examples | New-user completion, time to first governed result, actionable failed prerequisites and second-team onboarding | Planned |
 
 ## Sequenced delivery, full scope retained
 
