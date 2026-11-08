@@ -70,3 +70,7 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH='/Applications/Google Chrome.app/Contents/Ma
 ```
 
 The suite does not replace live EKS, object-storage, operator, container-runtime or OIDC qualification. No live cluster or provider is configured by these tests.
+
+## Licenses and attribution
+
+Original DataSlate code is licensed under [Apache-2.0](../LICENSE). Bundled DM Sans and IBM Plex Mono fonts retain their SIL Open Font License 1.1 terms and copyright notices. The [font notice index](public/licenses/NOTICE.txt), [DM Sans license](public/licenses/dm-sans-OFL.txt) and [IBM Plex Mono license](public/licenses/ibm-plex-mono-OFL.txt) are copied into every production build under `/licenses/`.

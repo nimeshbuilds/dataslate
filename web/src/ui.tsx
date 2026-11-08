@@ -3,7 +3,10 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 export function Logo({ small = false }: { small?: boolean }) {
-  return <span className={`brand ${small ? 'small' : ''}`}><span className="brand-mark" aria-hidden="true"><i /><i /><i /></span><span>DataSlate<span className="brand-period">.</span></span></span>;
+  return <span className={`brand ${small ? 'small' : ''}`}><svg className="brand-mark" viewBox="0 0 64 72" aria-hidden="true" focusable="false"><path d="M8 20 56 5v12L8 32Z" fill="#123D32" /><path d="M8 38 45 26v12L8 50Z" fill="#56836D" /><path d="M8 56 34 48v12L8 68Z" fill="#91BBA0" /></svg><span>DataSlate<span className="brand-period">.</span></span></span>;
+}
+export function SylonMark({ size = 20 }: { size?: number }) {
+  return <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M32 7c3 15 10 22 25 25-15 3-22 10-25 25-3-15-10-22-25-25C22 29 29 22 32 7Z" fill="currentColor" /><path d="M32 22c1.5 6 4 8.5 10 10-6 1.5-8.5 4-10 10-1.5-6-4-8.5-10-10 6-1.5 8.5-4 10-10Z" fill="#B9E29E" /><circle cx="51" cy="13" r="4" fill="currentColor" /><circle cx="12" cy="51" r="2.5" fill="currentColor" /></svg>;
 }
 export function Spinner({ label = 'Loading' }: { label?: string }) { return <span className="inline-loading" role="status"><LoaderCircle size={16} className="spin" />{label}</span>; }
 export function ErrorNotice({ children, retry }: { children: ReactNode; retry?: () => void }) { return <div className="notice error" role="alert"><AlertCircle size={18} /><div>{children}{retry && <button className="text-button" onClick={retry}>Try again <ArrowRight size={14} /></button>}</div></div>; }

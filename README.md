@@ -1,10 +1,41 @@
+<p align="center">
+  <img src="brand/github-banner.png" alt="DataSlate — Your lake. Your workspace. An open data and AI workspace for Kubernetes. Foundation build." width="100%" />
+</p>
+
+<p align="center">
+  <a href="https://nimeshbuilds.github.io/dataslate/">Explore DataSlate</a> ·
+  <a href="deploy/README.md">Deployment</a> ·
+  <a href="docs/implementation/coverage.md">Roadmap</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/NimeshBuilds/dataslate/actions/workflows/ci.yml"><img src="https://github.com/NimeshBuilds/dataslate/actions/workflows/ci.yml/badge.svg" alt="Foundation checks" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-123D32" alt="Apache-2.0 license" /></a>
+  <img src="https://img.shields.io/badge/status-foundation-DDE9DE" alt="Status: foundation" />
+</p>
+
 # DataSlate
 
-**One Kubernetes workspace for data engineering, analytics, machine learning and agents.** Sylon is the integrated assistant.
+**Your lake. Your workspace.** An open-source Kubernetes platform for data engineering, analytics, machine learning and agents, with **Sylon** as its integrated assistant.
 
 DataSlate is being built as an open-source product with paid support/hosting as a distribution option. It targets teams within one organization, starting with **AWS EKS and S3**. It will support both explicitly managed dependencies and compatible existing services. The complete scope includes Spark, lakehouse governance, ingestion, workflows, notebooks, SQL, visualization, ML, serving, feature stores, agents, memory, apps and sharing.
 
 **Current maturity: implementation foundation.** This repository begins the real application and deployment code. Source editing/persistence, authorization, dependency planning and Spark manifest previews are separate from live Spark/SQL/AI execution. Planned capabilities are shown honestly; no query or assistant result is fabricated. This is not a production-qualified Databricks replacement yet.
+
+## A familiar workspace, on infrastructure you control
+
+DataSlate brings notebooks, SQL, catalogs, compute and AI into one product experience. The architecture connects mature open-source services through a shared identity, policy and resource model. Teams can use compatible existing services or explicitly provision managed dependencies.
+
+| Available in the foundation | Integration roadmap |
+|---|---|
+| Python/SQL source editors, saved notebooks and revision conflict handling | Spark execution, SQL sessions, result tables, charts and profiling |
+| Verified OIDC access tokens and workspace roles | Catalog governance, consistent row/column enforcement and lineage |
+| PostgreSQL persistence and managed/external dependency planning | S3/ADLS/GCS lake connections, Delta/Iceberg, ingestion and maintenance |
+| Apache/Kubeflow SparkApplication manifest previews | Workflow scheduling, streaming and operational compute controls |
+| Kubernetes Helm deployment scaffolding and Python SDK/CLI | Sylon gateways, agents, memory, ML, serving, apps and sharing |
+
+Each integration has its own validation gate. See the [capability inventory](docs/implementation/coverage.md) for the complete scope and the [validation record](docs/implementation/validation.md) for evidence.
 
 ## Repository
 
@@ -65,4 +96,6 @@ The critical first integration is UC OSS + Delta + Kyuubi/Spark SQL/Ranger with 
 
 ## License
 
-Original DataSlate code is under [Apache-2.0](LICENSE). Separately distributed dependencies retain their own licenses. No upstream project's name or license establishes compatibility with DataSlate. No GitHub organization, hosted service or public package has been registered by this initial repository work.
+Original DataSlate code is under [Apache-2.0](LICENSE). Separately distributed dependencies retain their own licenses and [notices](NOTICE). Brand source files and usage guidance are in [brand/](brand/README.md).
+
+DataSlate is an independent project maintained under [NimeshBuilds](https://github.com/NimeshBuilds). It is not affiliated with or endorsed by Databricks or the upstream projects mentioned here. Their names identify interoperability targets, not certification. Hosted services and published runtime packages are not available yet.

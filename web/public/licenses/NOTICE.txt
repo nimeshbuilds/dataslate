@@ -1,0 +1,10 @@
+DataSlate workspace — bundled font notices
+
+These fonts retain their copyright notices and SIL Open Font License 1.1.
+Full license texts are distributed alongside this file.
+
+@fontsource/dm-sans 5.3.0 (OFL-1.1)
+License and copyright: dm-sans-OFL.txt
+
+@fontsource/ibm-plex-mono 5.3.0 (OFL-1.1)
+License and copyright: ibm-plex-mono-OFL.txt
