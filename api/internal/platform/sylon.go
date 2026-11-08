@@ -35,6 +35,7 @@ type SylonContextPolicy struct {
 	SearchBindingIDs   []string `json:"searchBindingIds"`
 }
 type SylonBinding struct {
+	Memory               *SylonMemoryPolicy `json:"memory,omitempty"`
 	ID                   string             `json:"id"`
 	WorkspaceID          string             `json:"workspaceId"`
 	Name                 string             `json:"name"`
@@ -47,6 +48,11 @@ type SylonBinding struct {
 }
 
 func (b SylonBinding) Validate() error {
+	if b.Memory != nil {
+		if err := b.Memory.Validate(); err != nil {
+			return err
+		}
+	}
 	if !identifier.MatchString(b.ID) || !identifier.MatchString(b.WorkspaceID) || !utf8.ValidString(b.Name) || strings.TrimSpace(b.Name) == "" || len(b.Name) > 200 || !sqlHeaderValue.MatchString(b.PolicyVersion) || !b.DataTransferAccepted || b.MaxContextBytes < 1024 || b.MaxContextBytes > 98304 || b.AllowedSubjects == nil || len(b.AllowedSubjects) > 1000 {
 		return errors.New("Sylon requires valid identity, explicit transfer approval and bounded context profile")
 	}
@@ -145,6 +151,7 @@ type SylonSearchSelection struct {
 	Mode      string `json:"mode"`
 }
 type SylonMessageInput struct {
+	Memories       []SylonMemorySelection   `json:"memories,omitempty"`
 	IdempotencyKey string                   `json:"idempotencyKey"`
 	Prompt         string                   `json:"prompt"`
 	Notebook       *SQLSelection            `json:"notebook,omitempty"`
@@ -153,6 +160,16 @@ type SylonMessageInput struct {
 }
 
 func (in SylonMessageInput) Validate() error {
+	if len(in.Memories) > MaxSylonMemorySelections {
+		return errors.New("at most four memory selections")
+	}
+	seenMemory := map[string]bool{}
+	for _, m := range in.Memories {
+		if !identifier.MatchString(m.ID) || m.Revision < 1 || seenMemory[m.ID] {
+			return errors.New("exact unique memory revisions required")
+		}
+		seenMemory[m.ID] = true
+	}
 	if !idempotencyKeyPattern.MatchString(in.IdempotencyKey) || !utf8.ValidString(in.Prompt) || strings.TrimSpace(in.Prompt) == "" || len(in.Prompt) > 8192 || strings.ContainsRune(in.Prompt, 0) || len(in.Catalogs) > 4 {
 		return errors.New("Sylon message requires a key, 1–8192 byte prompt and at most four catalogs")
 	}
@@ -187,6 +204,7 @@ type SylonNotebookReference struct {
 	CellID   string `json:"cellId,omitempty"`
 }
 type SylonCitation struct {
+	Memory           *SylonMemoryReference    `json:"memory,omitempty"`
 	ID               string                   `json:"id"`
 	Kind             string                   `json:"kind"`
 	Title            string                   `json:"title"`
@@ -198,6 +216,8 @@ type SylonCitation struct {
 
 // Dependencies include every supplied source, regardless of whether a model chooses to cite it.
 type SylonDependency struct {
+	MemoryID         string                  `json:"memoryId,omitempty"`
+	MemoryRevision   int                     `json:"memoryRevision,omitempty"`
 	Kind             string                  `json:"kind"`
 	NotebookID       string                  `json:"notebookId,omitempty"`
 	Catalog          *SearchCatalogSelection `json:"catalog,omitempty"`
@@ -227,6 +247,8 @@ type SylonApplyReceipt struct {
 	AppliedAt        time.Time `json:"appliedAt"`
 }
 type SylonJob struct {
+	MemoryInvalidated bool                   `json:"memoryInvalidated,omitempty"`
+	Memories          []SylonMemorySelection `json:"memories,omitempty"`
 	Resource
 	WorkspaceID     string                   `json:"workspaceId"`
 	ConversationID  string                   `json:"conversationId"`
@@ -254,7 +276,7 @@ func newSylonJob(c SylonConversation, b SylonBinding, in SylonMessageInput) Sylo
 	if catalogs == nil {
 		catalogs = []SearchCatalogSelection{}
 	}
-	return SylonJob{Resource: newResource("syl-"), WorkspaceID: c.WorkspaceID, ConversationID: c.ID, BindingID: b.ID, SubmittedBy: c.Owner, PolicyVersion: b.PolicyVersion, State: "queued", Message: "Queued for current context authorization.", Prompt: in.Prompt, Notebook: in.Notebook, Catalogs: catalogs, Search: in.Search, Citations: []SylonCitation{}}
+	return SylonJob{Memories: in.Memories, Resource: newResource("syl-"), WorkspaceID: c.WorkspaceID, ConversationID: c.ID, BindingID: b.ID, SubmittedBy: c.Owner, PolicyVersion: b.PolicyVersion, State: "queued", Message: "Queued for current context authorization.", Prompt: in.Prompt, Notebook: in.Notebook, Catalogs: catalogs, Search: in.Search, Citations: []SylonCitation{}}
 }
 
 type SylonWork struct {

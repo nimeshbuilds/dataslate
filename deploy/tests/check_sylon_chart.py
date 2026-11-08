@@ -89,6 +89,17 @@ def check_sylon_chart(run, external_args, managed_args):
         assert bindings(r, "sylon") == [] and ("ConfigMap", "dataslate-sylon-search") not in r and ("ConfigMap", "dataslate-sylon-catalog") not in r
         assert not any(v["name"].startswith(("search", "catalog")) for v in credentials(pod(r, "sylon-controller")))
 
+        # Memory is an explicit per-binding policy and adds no credentials or egress.
+        assert "memory" not in bindings(objects, "sylon")[0]
+        memory = copy.deepcopy(values)
+        memory["sylon"]["bindings"][0]["memory"] = {"enabled": True, "defaultTTLDays": 30, "maxTTLDays": 365}
+        memory_objects = render(memory)
+        assert bindings(memory_objects, "sylon")[0]["memory"] == memory["sylon"]["bindings"][0]["memory"]
+        assert credentials(pod(memory_objects, "sylon-controller")) == credentials(worker)
+        assert memory_objects[("NetworkPolicy", "dataslate-sylon-controller")]["spec"] == policy
+        for bad in [{}, {"enabled": False, "defaultTTLDays": 30, "maxTTLDays": 365}, {"enabled": True, "defaultTTLDays": 0, "maxTTLDays": 365}, {"enabled": True, "defaultTTLDays": 30, "maxTTLDays": 366}, {"enabled": True, "defaultTTLDays": 31, "maxTTLDays": 30}, {"enabled": True, "defaultTTLDays": 1.5, "maxTTLDays": 365}, {"enabled": True, "defaultTTLDays": 30, "maxTTLDays": 365, "shared": True}]:
+            invalid = copy.deepcopy(memory); invalid["sylon"]["bindings"][0]["memory"] = bad; render(invalid, "memory")
+
         negatives = [
             (["enabled"], False, "require sylon.enabled"),
             (["credentials"], [], "credentialsId"),
@@ -135,4 +146,4 @@ def check_sylon_chart(run, external_args, managed_args):
         invalid = copy.deepcopy(combined); invalid["sylon"]["searchEgress"] = []; render(invalid, "explicit sylon.searchEgress")
         invalid = copy.deepcopy(combined); invalid["sylon"]["bindings"][0]["workspaceId"] = "another-team"; render(invalid, "same workspace")
         print("PASS Sylon deployment: provider credentials worker-only, explicit subject/context authority, selected indirect catalog/search credentials, exact egress, OAuth/bearer and revocation")
-        print(f"PASS Sylon: {len(negatives) + 10} invalid/unsafe configuration rejection cases")
+        print(f"PASS Sylon: {len(negatives) + 17} invalid/unsafe configuration rejection cases")

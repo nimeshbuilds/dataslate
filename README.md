@@ -21,7 +21,7 @@
 
 DataSlate is being built as an open-source product with paid support/hosting as a distribution option. It targets teams within one organization, starting with **AWS EKS and S3**. It will support both explicitly managed dependencies and compatible existing services. The complete scope includes Spark, lakehouse governance, ingestion, workflows, notebooks, SQL, visualization, ML, serving, feature stores, agents, memory, apps and sharing.
 
-**Current maturity: implementation foundation with tested backend integrations.** DataSlate implements durable Spark application/notebook execution, incremental file-to-Delta ingestion, governed Trino SQL with result tables/charts, Apache Polaris catalog metadata, authorized lexical/hybrid search, and Sylon conversations with reviewable cell proposals. Each has explicit workspace, identity and deployment contracts. Real local Spark/Delta containers, distributed Trino and Polaris checks are recorded separately from PostgreSQL and browser tests. Interactive kernels, Agent Studio, broader platform features and EKS/S3 production qualification remain under development. This is not a production-qualified Databricks replacement yet.
+**Current maturity: implementation foundation with tested backend integrations.** DataSlate implements durable Spark application/notebook execution, incremental file-to-Delta ingestion, governed Trino SQL with result tables/charts, Apache Polaris catalog metadata, authorized lexical/hybrid search, and Sylon conversations with reviewable cell proposals and private curated memory. Each has explicit workspace, identity and deployment contracts. Real local Spark/Delta containers, distributed Trino and Polaris checks are recorded separately from PostgreSQL and browser tests. Interactive kernels, Agent Studio, broader platform features and EKS/S3 production qualification remain under development. This is not a production-qualified Databricks replacement yet.
 
 ## A familiar workspace, on infrastructure you control
 
@@ -34,7 +34,7 @@ DataSlate brings notebooks, SQL, catalogs, compute and AI into one product exper
 | Versioned JSON/Parquet ingestion with Delta/Snappy publication and durable checkpoint ownership | Cloud file/table qualification, CDC/connectors and scheduled maintenance |
 | Apache Spark lifecycle, Polaris metadata, optional managed Trino/Polaris profiles | Workflow scheduling, native acceleration, operational scaling and recovery |
 | Authorized full-text/pgvector search, embedding gateway authentication, shared UI/API/CLI | Production search relevance, scale and native provider qualification |
-| Sylon private history, authorized metadata/cell context and revision-checked code proposals | Agent Studio, durable tools, long-term memory, ML, serving, apps and sharing |
+| Sylon private history, authorized context, reviewed code proposals and private memory with revision/expiry controls | Agent Studio, durable tools, shared/team memory, ML, serving, apps and sharing |
 
 Each integration has its own validation gate. See the [capability inventory](docs/implementation/coverage.md) for the complete scope and the [validation record](docs/implementation/validation.md) for evidence.
 

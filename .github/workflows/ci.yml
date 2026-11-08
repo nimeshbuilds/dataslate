@@ -45,6 +45,14 @@ jobs:
           DATASLATE_TEST_REQUIRE_VECTOR: "1"
       - name: API image build
         run: docker build -t dataslate-api:ci api
+      - name: Test and compile the opt-in PostgreSQL memory browser harness
+        run: |
+          mkdir -p api/.qa/memory-workspace
+          cp scripts/qualify-memory-workspace.go api/.qa/memory-workspace/main.go
+          cp scripts/qualify-memory-workspace_test.go api/.qa/memory-workspace/main_test.go
+          cd api
+          go test -race ./.qa/memory-workspace
+          go build -o "$RUNNER_TEMP/dataslate-memory-workspace" ./.qa/memory-workspace
       - name: SQL controller image build
         run: docker build -f api/SQLControllerDockerfile -t dataslate-sql-controller:ci api
       - name: Search controller image build

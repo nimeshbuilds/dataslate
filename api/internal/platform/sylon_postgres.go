@@ -64,14 +64,28 @@ func (s *PostgresStore) SylonConversation(ctx context.Context, ws, id string, ow
 	return c, err
 }
 func (s *PostgresStore) DeleteSylonConversation(ctx context.Context, ws, id string, owner ExecutionSubject) error {
-	tag, err := s.pool.Exec(ctx, "DELETE FROM dataslate_sylon_conversations WHERE workspace_id=$1 AND id=$2 AND issuer=$3 AND subject=$4", ws, id, owner.Issuer, owner.Subject)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() != 1 {
-		return ErrNotFound
+	defer tx.Rollback(ctx)
+	if err = lockMemoryWorkspace(ctx, tx, ws); err != nil {
+		return err
 	}
-	return nil
+	var found string
+	if err = tx.QueryRow(ctx, "SELECT id FROM dataslate_sylon_conversations WHERE workspace_id=$1 AND id=$2 AND issuer=$3 AND subject=$4 FOR UPDATE", ws, id, owner.Issuer, owner.Subject).Scan(&found); err != nil {
+		return storeError(err)
+	}
+	if _, err = tx.Exec(ctx, "SELECT id FROM dataslate_sylon_jobs WHERE conversation_id=$1 ORDER BY id FOR UPDATE", id); err != nil {
+		return err
+	}
+	if err = invalidateConversationMemoriesPG(ctx, tx, ws, id); err != nil {
+		return err
+	}
+	if _, err = tx.Exec(ctx, "DELETE FROM dataslate_sylon_conversations WHERE id=$1", id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 func scanSylonWork(row pgx.Row) (SylonWork, error) {
 	var data, prepared []byte
@@ -174,6 +188,9 @@ func (s *PostgresStore) CreateSylonJob(ctx context.Context, work SylonWork, key,
 			return SylonJob{}, false, ErrSylonRevision
 		}
 	}
+	if err = memoryDepsCurrentPG(ctx, tx, ws, j.SubmittedBy, memorySelectionDependencies(j.Memories), ""); err != nil {
+		return SylonJob{}, false, err
+	}
 	data, _ := json.Marshal(j)
 	prepared, _ := json.Marshal(work.Context)
 	if _, err = tx.Exec(ctx, `INSERT INTO dataslate_sylon_jobs(id,workspace_id,conversation_id,issuer,subject,idempotency_key,fingerprint,policy_hash,document,context,state,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, j.ID, ws, j.ConversationID, j.SubmittedBy.Issuer, j.SubmittedBy.Subject, key, fingerprint, work.PolicyHash, data, prepared, j.State, j.CreatedAt); err != nil {
@@ -255,12 +272,21 @@ func (s *PostgresStore) SaveSylonContext(ctx context.Context, l SylonLease, prep
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err = lockSylonMemoryWorkspace(ctx, tx, l); err != nil {
+		return err
+	}
 	work, err := sylonLeaseRow(ctx, tx, l)
 	if err != nil {
 		return err
 	}
 	if work.Job.CancelRequested || work.Job.Terminal() {
 		return ErrSylonCancelled
+	}
+	if err = memoryDepsCurrentPG(ctx, tx, work.Job.WorkspaceID, work.Job.SubmittedBy, prepared.Dependencies, l.ID); err != nil {
+		return err
+	}
+	if _, err = sylonLeaseRow(ctx, tx, l); err != nil {
+		return err
 	}
 	work.Job.Citations = prepared.Citations
 	data, _ := json.Marshal(work.Job)
@@ -279,12 +305,21 @@ func (s *PostgresStore) MarkSylonDispatch(ctx context.Context, l SylonLease, sta
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err = lockSylonMemoryWorkspace(ctx, tx, l); err != nil {
+		return err
+	}
 	work, err := sylonLeaseRow(ctx, tx, l)
 	if err != nil {
 		return err
 	}
 	if work.Job.CancelRequested || work.Job.Terminal() {
 		return ErrSylonCancelled
+	}
+	if err = memoryDepsCurrentPG(ctx, tx, work.Job.WorkspaceID, work.Job.SubmittedBy, work.Context.Dependencies, ""); err != nil {
+		return err
+	}
+	if _, err = sylonLeaseRow(ctx, tx, l); err != nil {
+		return err
 	}
 	work.Job.DispatchStarted = true
 	work.Job.State = stage
@@ -302,9 +337,16 @@ func (s *PostgresStore) FinishSylonJob(ctx context.Context, l SylonLease, state,
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err = lockSylonMemoryWorkspace(ctx, tx, l); err != nil {
+		return err
+	}
 	work, err := sylonLeaseRow(ctx, tx, l)
 	if err != nil {
 		return err
+	}
+	deps := append([]SylonDependency{}, work.Context.Dependencies...)
+	if prepared != nil {
+		deps = append(deps, prepared.Dependencies...)
 	}
 	if state == "succeeded" && !work.Job.CancelRequested {
 		if selected := work.Job.Notebook; selected != nil {
@@ -320,6 +362,20 @@ func (s *PostgresStore) FinishSylonJob(ctx context.Context, l SylonLease, state,
 				return err
 			}
 		}
+	}
+	// Notebook and all memory locks are now held. Revalidate time/fence last.
+	if err = memoryDepsCurrentPG(ctx, tx, work.Job.WorkspaceID, work.Job.SubmittedBy, deps, l.ID); err != nil {
+		if !errors.Is(err, ErrMemoryAccess) {
+			return err
+		}
+		redactMemoryJob(&work)
+		state = "failed"
+		message = work.Job.Message
+		prepared = nil
+		resultJob = nil
+	}
+	if _, err = sylonLeaseRow(ctx, tx, l); err != nil {
+		return err
 	}
 	if err = finishSylon(&work, state, message, prepared, resultJob); err != nil {
 		return err
@@ -337,8 +393,17 @@ func (s *PostgresStore) ApplySylonCode(ctx context.Context, ws, id string, owner
 		return SylonApplyReceipt{}, err
 	}
 	defer tx.Rollback(ctx)
+	if err = lockMemoryWorkspace(ctx, tx, ws); err != nil {
+		return SylonApplyReceipt{}, err
+	}
 	work, err := scanSylonWork(tx.QueryRow(ctx, "SELECT document,policy_hash,context FROM dataslate_sylon_jobs WHERE workspace_id=$1 AND id=$2 AND issuer=$3 AND subject=$4 FOR UPDATE", ws, id, owner.Issuer, owner.Subject))
 	if err != nil {
+		return SylonApplyReceipt{}, err
+	}
+	if work.Job.MemoryInvalidated {
+		return SylonApplyReceipt{}, ErrMemoryAccess
+	}
+	if err = memoryDepsCurrentPG(ctx, tx, ws, owner, work.Context.Dependencies, ""); err != nil {
 		return SylonApplyReceipt{}, err
 	}
 	if old := work.Job.Applied; old != nil {
@@ -349,6 +414,9 @@ func (s *PostgresStore) ApplySylonCode(ctx context.Context, ws, id string, owner
 	}
 	n, err := scanNotebook(tx.QueryRow(ctx, "SELECT "+notebookColumns+" FROM dataslate_notebooks WHERE workspace_id=$1 AND id=$2 FOR UPDATE", ws, in.NotebookID))
 	if err != nil {
+		return SylonApplyReceipt{}, err
+	}
+	if err = memoryDepsCurrentPG(ctx, tx, ws, owner, work.Context.Dependencies, ""); err != nil {
 		return SylonApplyReceipt{}, err
 	}
 	next, err := sylonApplyNotebook(work.Job, n, in)

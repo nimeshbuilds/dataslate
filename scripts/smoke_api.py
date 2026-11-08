@@ -1,6 +1,7 @@
 """Exercise the real foundation API through the Python client in ephemeral development mode."""
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
 from uuid import uuid4
@@ -47,6 +48,13 @@ expect_error(404, lambda: client.sylon_conversation(workspace_id,"chat-missing")
 expect_error(404, lambda: client.sylon_job(workspace_id,"syl-missing"))
 expect_error(404, lambda: client.cancel_sylon_job(workspace_id,"syl-missing"))
 expect_error(404, lambda: client.send_sylon_message(workspace_id,"chat-missing","Explain this table",idempotency_key="smoke-sylon"))
+assert client.sylon_memories(workspace_id) == {"items": []}
+expect_error(404, lambda: client.sylon_memory(workspace_id, "mem-missing"))
+expect_error(403, lambda: client.recall_sylon_memories(workspace_id, "unconfigured", "reporting convention"))
+memory_expiry = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+expect_error(404, lambda: client.save_sylon_memory(workspace_id, "syl-missing", 1, "Reviewed memory", "No source exists.",
+                                                 memory_expiry, idempotency_key="smoke-memory-save"))
+expect_error(404, lambda: client.delete_sylon_memory(workspace_id, "mem-missing", 1, idempotency_key="smoke-memory-delete"))
 expect_error(501, lambda: client.create_run(workspace_id, "unconfigured", idempotency_key="smoke-submission"))
 expect_error(501, lambda: client.create_notebook_run(workspace_id, "unconfigured", "nb-missing", 1, idempotency_key="smoke-notebook"))
 expect_error(404, lambda: client.run(workspace_id, "run-missing"))
@@ -97,4 +105,4 @@ for operator, group in (("apache", "spark.apache.org/v1"), ("kubeflow", "sparkop
     result = client.spark_preview(workspace_id, {**request, "operator": operator})
     assert result["submitted"] is False
     assert result["manifest"]["apiVersion"] == group
-print(json.dumps({"result": "passed", "checks": ["API/SDK contract", "disabled execution and owner-scoped routes", "unconfigured SQL denies submission", "unconfigured catalog denies metadata", "unconfigured search denies indexing and transfer", "unconfigured Sylon denies provider use", "notebook save/reopen", "revision conflict", "cross-workspace lookup", "pipeline lifecycle and revision fencing", "broader module inventory", "dependency preview", "Apache and Kubeflow manifests"], "liveEngineExecution": False}))
+print(json.dumps({"result": "passed", "checks": ["API/SDK contract", "disabled execution and owner-scoped routes", "unconfigured SQL denies submission", "unconfigured catalog denies metadata", "unconfigured search denies indexing and transfer", "unconfigured Sylon denies provider use", "private memory denies missing provenance and unconfigured recall", "notebook save/reopen", "revision conflict", "cross-workspace lookup", "pipeline lifecycle and revision fencing", "broader module inventory", "dependency preview", "Apache and Kubeflow manifests"], "liveEngineExecution": False}))

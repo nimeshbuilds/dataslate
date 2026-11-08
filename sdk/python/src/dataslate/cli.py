@@ -133,7 +133,7 @@ def parser():
             command.add_argument("--binding", required=True)
             command.add_argument("--title", required=True)
         if action == "send":
-            command.add_argument("--file", required=True, help="JSON prompt, persisted idempotencyKey and optional exact notebook/catalog/search context")
+            command.add_argument("--file", required=True, help="JSON prompt, persisted idempotencyKey and optional exact notebook/catalog/search/memory context")
         if action in {"get", "cancel", "apply", "watch"}:
             command.add_argument("--id", required=True)
         if action == "apply":
@@ -143,6 +143,18 @@ def parser():
         if action == "watch":
             command.add_argument("--interval", type=float, default=2)
             command.add_argument("--max-wait", type=float, default=300)
+    memories = sylon.add_parser("memory", help="Private reviewed memory; local recall does not call a model").add_subparsers(dest="memory_action", required=True)
+    for action in ("list", "get", "save", "correct", "delete", "recall"):
+        command = memories.add_parser(action)
+        command.add_argument("--workspace", required=True)
+        if action in {"get", "correct", "delete"}:
+            command.add_argument("--id", required=True)
+        if action in {"save", "correct", "delete"}:
+            command.add_argument("--file", required=True, help="Exact reviewed mutation JSON including a persistent idempotencyKey")
+        if action == "recall":
+            command.add_argument("--binding", required=True)
+            command.add_argument("--query", required=True)
+            command.add_argument("--limit", type=int, default=4)
     return result
 
 
@@ -192,7 +204,33 @@ def main(argv=None):
                 for state in client.watch_sylon_job(args.workspace,args.id,interval=args.interval,max_wait=args.max_wait):
                     print(json.dumps(state,ensure_ascii=False),flush=True)
                 return 0 if state["state"] == "succeeded" else 3
-            if args.action in {"bindings", "conversations"}:
+            if args.action == "memory":
+                if args.memory_action == "list":
+                    output = client.sylon_memories(args.workspace)
+                elif args.memory_action == "get":
+                    output = client.sylon_memory(args.workspace, args.id)
+                elif args.memory_action == "recall":
+                    output = client.recall_sylon_memories(args.workspace, args.binding, args.query, limit=args.limit)
+                else:
+                    body = _file(args.file)
+                    required = {"idempotencyKey", "revision"} if args.memory_action == "delete" else {
+                        "idempotencyKey", "title", "content", "expiresAt",
+                        "source" if args.memory_action == "save" else "revision"}
+                    if set(body) != required:
+                        raise ValueError("Memory file must contain exactly: " + ", ".join(sorted(required)))
+                    if args.memory_action == "save":
+                        source = body["source"]
+                        if not isinstance(source, dict) or set(source) != {"jobId", "revision"}:
+                            raise ValueError("Memory source requires exactly jobId and revision")
+                        output = client.save_sylon_memory(args.workspace, source["jobId"], source["revision"],
+                            body["title"], body["content"], body["expiresAt"], idempotency_key=body["idempotencyKey"])
+                    elif args.memory_action == "correct":
+                        output = client.correct_sylon_memory(args.workspace, args.id, body["revision"],
+                            body["title"], body["content"], body["expiresAt"], idempotency_key=body["idempotencyKey"])
+                    else:
+                        output = client.delete_sylon_memory(args.workspace, args.id, body["revision"],
+                            idempotency_key=body["idempotencyKey"])
+            elif args.action in {"bindings", "conversations"}:
                 output = (client.sylon_bindings if args.action == "bindings" else client.sylon_conversations)(args.workspace)
             elif args.action == "create":
                 output = client.create_sylon_conversation(args.workspace,args.binding,args.title)
@@ -200,10 +238,10 @@ def main(argv=None):
                 output = (client.sylon_conversation if args.action == "conversation" else client.delete_sylon_conversation)(args.workspace,args.conversation)
             elif args.action == "send":
                 body = _file(args.file)
-                if not {"prompt", "idempotencyKey"} <= set(body) or set(body) - {"prompt", "idempotencyKey", "notebook", "catalogs", "search"}:
-                    raise ValueError("Message file requires prompt/idempotencyKey and optional notebook/catalogs/search only")
+                if not {"prompt", "idempotencyKey"} <= set(body) or set(body) - {"prompt", "idempotencyKey", "notebook", "catalogs", "search", "memories"}:
+                    raise ValueError("Message file requires prompt/idempotencyKey and optional notebook/catalogs/search/memories only")
                 output = client.send_sylon_message(args.workspace,args.conversation,body["prompt"],idempotency_key=body["idempotencyKey"],
-                                                   notebook=body.get("notebook"),catalogs=body.get("catalogs"),search=body.get("search"))
+                                                   notebook=body.get("notebook"),catalogs=body.get("catalogs"),search=body.get("search"),memories=body.get("memories"))
             elif args.action == "apply":
                 output = client.apply_sylon_proposal(args.workspace,args.id,args.notebook,args.revision,args.cell)
             else:

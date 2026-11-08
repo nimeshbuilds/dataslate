@@ -190,6 +190,7 @@
 {{- $searches := dict -}}{{- range .Values.search.bindings -}}{{- $_ := set $searches (printf "%s/%s" .workspaceId .id) true -}}{{- end -}}
 {{- $bindings := dict -}}
 {{- range .Values.sylon.bindings -}}
+{{- if and .memory (gt (int .memory.defaultTTLDays) (int .memory.maxTTLDays)) -}}{{- fail "Sylon memory defaultTTLDays must not exceed maxTTLDays" -}}{{- end -}}
 {{- $key := printf "%s/%s" .workspaceId .id -}}
 {{- if hasKey $bindings $key -}}{{- fail "Sylon binding IDs must be unique within a workspace" -}}{{- end -}}{{- $_ := set $bindings $key true -}}
 {{- if eq (trim .name) "" -}}{{- fail "Sylon binding name must not be blank" -}}{{- end -}}

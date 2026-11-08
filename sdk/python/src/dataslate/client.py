@@ -7,6 +7,7 @@ import json
 import math
 import re
 import time
+from datetime import datetime
 from http.client import HTTPException
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -36,6 +37,70 @@ def _segment(value: str) -> str:
 def _run_key(value: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", value):
         raise ValueError("idempotency_key must be 8–128 letters, digits, dots, underscores, colons or hyphens")
+    return value
+
+
+def _positive_revision(value: int) -> int:
+    if type(value) is not int or value < 1:
+        raise ValueError("revision must be a positive integer")
+    return value
+
+
+def _rfc3339(value: str) -> datetime:
+    if (not isinstance(value, str) or not re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})", value)):
+        raise ValueError("An explicit RFC3339 timestamp with timezone is required")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.utcoffset() is None:
+            raise ValueError("missing timezone")
+    except ValueError:
+        raise ValueError("A valid RFC3339 timestamp is required") from None
+    return parsed
+
+
+def _memory_text(title: str, content: str, expires_at: str) -> dict[str, str]:
+    for label, value, limit in (("title", title, 200), ("content", content, 4096)):
+        if (not isinstance(value, str) or not value.strip() or "\x00" in value
+                or len(value.encode("utf-8")) > limit):
+            raise ValueError(f"Memory {label} must be nonempty and at most {limit} UTF-8 bytes")
+    _rfc3339(expires_at)
+    # The server's clock and administrator policy decide the permitted expiry.
+    return {"title": title, "content": content, "expiresAt": expires_at}
+
+
+def _memory_receipt(value: Any, workspace_id: str, operation: str, previous_revision: int,
+                    memory_id: str | None = None) -> Any:
+    message = "Memory mutation returned a mismatched receipt; preserve the original request for recovery"
+    if not isinstance(value, dict) or type(value.get("replayed")) is not bool:
+        raise DataSlateError("invalid_response", message)
+    receipt, summary = value.get("receipt"), value.get("memory")
+    if (not isinstance(receipt, dict) or not isinstance(summary, dict)
+            or receipt.get("workspaceId") != workspace_id or receipt.get("operation") != operation
+            or type(receipt.get("previousRevision")) is not int or receipt["previousRevision"] != previous_revision
+            or type(receipt.get("revision")) is not int or receipt["revision"] != previous_revision + 1
+            or not isinstance(receipt.get("memoryId"), str) or not receipt["memoryId"]
+            or memory_id is not None and receipt["memoryId"] != memory_id
+            or summary.get("id") != receipt["memoryId"] or summary.get("workspaceId") != workspace_id
+            or type(summary.get("revision")) is not int or summary["revision"] < receipt["revision"]
+            or summary.get("state") not in {"available", "restricted", "expired", "deleted"}
+            or type(summary.get("purgePending")) is not bool):
+        raise DataSlateError("invalid_response", message)
+    if (set(receipt) - {"memoryId", "workspaceId", "operation", "previousRevision", "revision", "appliedAt"}
+            or set(summary) - {"id", "workspaceId", "revision", "state", "expiresAt", "purgePending", "title", "bindingId"}
+            or summary["state"] != "available" and ({"title", "bindingId"} & set(summary))):
+        raise DataSlateError("invalid_response", message)
+    try:
+        _segment(receipt["memoryId"])
+        _rfc3339(receipt.get("appliedAt"))
+        _rfc3339(summary.get("expiresAt"))
+        if summary["state"] == "available":
+            _segment(summary.get("bindingId"))
+            title = summary.get("title")
+            if not isinstance(title, str) or not title.strip() or "\x00" in title or len(title.encode("utf-8")) > 200:
+                raise ValueError("invalid title")
+    except ValueError:
+        raise DataSlateError("invalid_response", message) from None
     return value
 
 
@@ -295,7 +360,8 @@ class Client:
 
     def send_sylon_message(self, workspace_id: str, conversation_id: str, prompt: str, *,
                            idempotency_key: str, notebook: dict[str, Any] | None = None,
-                           catalogs: list[dict[str, Any]] | None = None, search: dict[str, Any] | None = None):
+                           catalogs: list[dict[str, Any]] | None = None, search: dict[str, Any] | None = None,
+                           memories: list[dict[str, Any]] | None = None):
         """Accept one private assistant intent. Context uses resource IDs, never provider credentials.
 
         Persist the exact prompt/context/key before sending. A model response is
@@ -329,10 +395,67 @@ class Client:
                 raise ValueError("Search context requires bindingId, bounded query and lexical/hybrid mode")
             _segment(search["bindingId"])
             body["search"] = search
+        if memories is not None:
+            if not isinstance(memories, list) or len(memories) > 4:
+                raise ValueError("At most four explicitly reviewed memory revisions are accepted")
+            selected_ids = set()
+            for memory in memories:
+                if (not isinstance(memory, dict) or set(memory) != {"id", "revision"}
+                        or type(memory["revision"]) is not int or memory["revision"] < 1):
+                    raise ValueError("Memory context requires an exact id and positive revision")
+                _segment(memory["id"])
+                if memory["id"] in selected_ids:
+                    raise ValueError("A memory can only be selected once")
+                selected_ids.add(memory["id"])
+            body["memories"] = memories
         return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/conversations/{_segment(conversation_id)}/messages", body)
 
     def sylon_job(self, workspace_id: str, job_id: str):
         return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/jobs/{_segment(job_id)}")
+
+    def sylon_memories(self, workspace_id: str):
+        """List private memory management summaries, including minimal restricted entries."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/memories")
+
+    def sylon_memory(self, workspace_id: str, memory_id: str):
+        """Read memory content only while its source and binding remain authorized."""
+        return self.request("GET", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/memories/{_segment(memory_id)}")
+
+    def save_sylon_memory(self, workspace_id: str, source_job_id: str, source_revision: int,
+                          title: str, content: str, expires_at: str, *, idempotency_key: str):
+        """Save a reviewed summary of an owned successful answer; never calls a model.
+
+        Preserve the complete request and key. An uncertain response must be
+        recovered by replaying that exact intent, not generating a new key.
+        """
+        _segment(source_job_id)
+        body = {**_memory_text(title, content, expires_at), "idempotencyKey": _run_key(idempotency_key),
+                "source": {"jobId": source_job_id, "revision": _positive_revision(source_revision)}}
+        value = self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/memories", body)
+        return _memory_receipt(value, workspace_id, "create", 0)
+
+    def correct_sylon_memory(self, workspace_id: str, memory_id: str, revision: int,
+                             title: str, content: str, expires_at: str, *, idempotency_key: str):
+        """Correct exact current memory; invalidates history derived from its old revision."""
+        body = {**_memory_text(title, content, expires_at), "idempotencyKey": _run_key(idempotency_key),
+                "revision": _positive_revision(revision)}
+        value = self.request("PUT", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/memories/{_segment(memory_id)}", body)
+        return _memory_receipt(value, workspace_id, "correct", revision, memory_id)
+
+    def delete_sylon_memory(self, workspace_id: str, memory_id: str, revision: int, *, idempotency_key: str):
+        """Revoke a remembered revision and queue local purge; cannot erase provider copies."""
+        body = {"idempotencyKey": _run_key(idempotency_key), "revision": _positive_revision(revision)}
+        value = self.request("DELETE", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/memories/{_segment(memory_id)}", body)
+        return _memory_receipt(value, workspace_id, "delete", revision, memory_id)
+
+    def recall_sylon_memories(self, workspace_id: str, binding_id: str, query: str, *, limit: int = 4):
+        """Find authorized private memories locally; review selections before sending to Sylon."""
+        _segment(binding_id)
+        if (not isinstance(query, str) or not query.strip() or "\x00" in query
+                or len(query.encode("utf-8")) > 4096 or type(limit) is not int or not 1 <= limit <= 4):
+            raise ValueError("Memory recall needs a nonempty query up to 4096 UTF-8 bytes and limit 1–4")
+        return self.request("POST", f"/api/v1/workspaces/{_segment(workspace_id)}/sylon/memories/recall",
+                            {"bindingId": binding_id, "query": query, "limit": limit})
 
     def cancel_sylon_job(self, workspace_id: str, job_id: str):
         """Request cancellation/discard; an already dispatched provider call may still be billed."""

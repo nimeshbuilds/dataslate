@@ -1,0 +1,44 @@
+{
+  "scope": "native production controller processes with owned loopback PostgreSQL",
+  "controllers": [
+    {
+      "controller": "sql",
+      "sha256": "13eda996eec40a4e3592ee6bf6ce8104a43809d6dd46f8520693f6d305a69b5c",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "search",
+      "sha256": "ffa5a7ce38a0b810876a0941c4eae2636c786572c81a2b9098bde0b588a05285",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    },
+    {
+      "controller": "sylon",
+      "sha256": "c8f78340527366a38891359653cd948864ce536e959601f5fdf9635dcda23177",
+      "verifiedTLS": true,
+      "restrictedRole": true,
+      "readinessAndIdleReconciliation": true,
+      "restart": true,
+      "gracefulShutdown": true,
+      "insecureDatabaseRejected": true
+    }
+  ],
+  "schemaVersion": 9,
+  "runtimeDDLAndMigrationWritesDenied": true,
+  "notTested": [
+    "browser OIDC login",
+    "cloud services",
+    "complete Kubernetes install",
+    "HA/restore",
+    "live jobs"
+  ]
+}

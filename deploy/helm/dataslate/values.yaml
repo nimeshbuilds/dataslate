@@ -155,6 +155,9 @@ search:
 
 # Private bounded assistant conversations; provider credentials stay in the worker.
 sylon:
+  # A binding may opt in to private memory with:
+  # memory: {enabled: true, defaultTTLDays: 30, maxTTLDays: 365}
+  # Omitting memory preserves the binding configuration and disables memory.
   enabled: false
   bindings: []
   credentials: []

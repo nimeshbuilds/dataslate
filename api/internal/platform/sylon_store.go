@@ -84,6 +84,7 @@ func (s *MemoryStore) DeleteSylonConversation(_ context.Context, ws, id string, 
 	if _, err := s.sylonConversation(ws, id, owner); err != nil {
 		return err
 	}
+	s.invalidateConversationMemories(ws, id)
 	delete(s.sylonConversations, id)
 	for key, j := range s.sylonJobs {
 		if j.Work.Job.ConversationID == id {
@@ -167,6 +168,9 @@ func (s *MemoryStore) CreateSylonJob(_ context.Context, work SylonWork, key, fin
 		if !found {
 			return SylonJob{}, false, ErrSylonRevision
 		}
+	}
+	if !s.memoryDepsCurrent(j.WorkspaceID, j.SubmittedBy, memorySelectionDependencies(j.Memories)) {
+		return SylonJob{}, false, ErrMemoryAccess
 	}
 	work = cloneSylonWork(work)
 	s.sylonJobs[j.ID] = &memorySylonJob{Work: work, Key: key, Fingerprint: fingerprint}
@@ -259,6 +263,9 @@ func (s *MemoryStore) SaveSylonContext(_ context.Context, l SylonLease, prepared
 	if j.Work.Job.CancelRequested || j.Work.Job.Terminal() {
 		return ErrSylonCancelled
 	}
+	if !s.memoryDepsCurrent(j.Work.Job.WorkspaceID, j.Work.Job.SubmittedBy, prepared.Dependencies) {
+		return ErrMemoryAccess
+	}
 	j.Work.Context = prepared
 	j.Work.Job.Citations = prepared.Citations
 	j.Work = cloneSylonWork(j.Work)
@@ -276,6 +283,9 @@ func (s *MemoryStore) MarkSylonDispatch(_ context.Context, l SylonLease, stage s
 	}
 	if stage != "preparing" && stage != "generating" {
 		return errors.New("invalid provider stage")
+	}
+	if !s.memoryDepsCurrent(j.Work.Job.WorkspaceID, j.Work.Job.SubmittedBy, j.Work.Context.Dependencies) {
+		return ErrMemoryAccess
 	}
 	j.Work.Job.DispatchStarted = true
 	j.Work.Job.State = stage
@@ -313,6 +323,15 @@ func (s *MemoryStore) FinishSylonJob(_ context.Context, l SylonLease, state, mes
 	j, err := s.sylonLeased(l)
 	if err != nil {
 		return err
+	}
+	deps := append([]SylonDependency{}, j.Work.Context.Dependencies...)
+	if prepared != nil {
+		deps = append(deps, prepared.Dependencies...)
+	}
+	if !s.memoryDepsCurrent(j.Work.Job.WorkspaceID, j.Work.Job.SubmittedBy, deps) {
+		redactMemoryJob(&j.Work)
+		j.Until = time.Time{}
+		return nil
 	}
 	if state == "succeeded" && !j.Work.Job.CancelRequested {
 		if selected := j.Work.Job.Notebook; selected != nil {
@@ -364,6 +383,9 @@ func (s *MemoryStore) ApplySylonCode(_ context.Context, ws, id string, owner Exe
 	j, err := s.sylonWork(ws, id, owner)
 	if err != nil {
 		return SylonApplyReceipt{}, err
+	}
+	if !s.memoryDepsCurrent(ws, owner, j.Work.Context.Dependencies) || j.Work.Job.MemoryInvalidated {
+		return SylonApplyReceipt{}, ErrMemoryAccess
 	}
 	if old := j.Work.Job.Applied; old != nil {
 		if old.NotebookID != in.NotebookID || old.CellID != in.CellID || old.PreviousRevision != in.Revision {

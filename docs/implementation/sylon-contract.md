@@ -2,7 +2,7 @@
 
 Sylon provides private asynchronous assistant conversations, saved-cell troubleshooting and code proposals through an administrator-approved model endpoint. It can use explicitly selected notebook cells, authorized Polaris table schemas, and authorized lexical or hybrid search. It never executes generated code or SQL. Applying a proposal and running the resulting saved document are separate user actions through existing authorized APIs.
 
-This is an implemented integration with memory/PostgreSQL lifecycle tests and a real local TLS model-provider fixture. External provider subscriptions, EKS/OIDC deployment, production capacity, personal/team agent memory, autonomous tool execution and production model quality remain separate qualification or implementation work. An API-compatible paid service or gateway must provide an approved API credential; consumer chat subscriptions are not assumed to grant API access.
+Reviewed owner-private memory is implemented separately in [the memory contract](sylon-memory-contract.md). This is an implemented integration with in-memory/PostgreSQL lifecycle tests and a real local TLS model-provider fixture. External provider subscriptions, EKS/OIDC deployment, production capacity, shared team memory, autonomous tool execution and production model quality remain separate qualification or implementation work. An API-compatible paid service or gateway must provide an approved API credential; consumer chat subscriptions are not assumed to grant API access.
 
 ## Administrator configuration
 
@@ -23,12 +23,12 @@ Routes below are under `/api/v1/workspaces/{workspaceId}/sylon`. Every request r
 | `POST /conversations` | `{bindingId,title}` creates a private conversation, status 201. |
 | `GET /conversations/{id}` | `{conversation,messages}`; reauthorizes every message and all source dependencies. |
 | `DELETE /conversations/{id}` | Status 204; owner may erase after binding revocation. Cascading deletion prevents late publication. |
-| `POST /conversations/{id}/messages` | `{idempotencyKey,prompt,notebook?,catalogs?,search?}`, status 202; exact replay status 200. |
+| `POST /conversations/{id}/messages` | `{idempotencyKey,prompt,notebook?,catalogs?,search?,memories?}`, status 202; exact replay status 200. |
 | `GET /jobs/{id}` | Current-owner job with current assistant and source authorization. |
 | `POST /jobs/{id}/cancel` | `{}` returns status 202 and only `{jobId,workspaceId,state,cancelRequested}`. |
 | `POST /jobs/{id}/apply` | `{notebookId,revision,cellId}` returns a durable one-use apply receipt, status 200. |
 
-A notebook selection is `{id,revision,cellId}` and must identify an exact current saved Python or SQL cell when queued and when new context is prepared. Catalog selectors are `{bindingId,namespace:[components],name}`. Search selection is `{bindingId,query,mode:lexical|hybrid}`. No browser-supplied endpoint, model, identity, credential or arbitrary tool definition is accepted. Unknown request fields are rejected. The earlier `/sylon/messages` foundation route remains an explicit unavailable capability; clients use the conversation routes.
+A notebook selection is `{id,revision,cellId}` and must identify an exact current saved Python or SQL cell when queued and when new context is prepared. Catalog selectors are `{bindingId,namespace:[components],name}`. Search selection is `{bindingId,query,mode:lexical|hybrid}`. Optional memory selection contains up to four explicitly reviewed `{id,revision}` references under the [private memory contract](sylon-memory-contract.md); selection is never automatic. No browser-supplied endpoint, model, identity, credential or arbitrary tool definition is accepted. Unknown request fields are rejected. The earlier `/sylon/messages` foundation route remains an explicit unavailable capability; clients use the conversation routes.
 
 Jobs expose resource timestamps/revision, workspace/conversation/binding IDs, `submittedBy`, `policyVersion`, state, message, explicit `dispatchStarted`/`cancelRequested` booleans, prompt and selections, citations, optional result and optional apply receipt. States are `queued`, `preparing`, `generating`, `succeeded`, `failed`, `unknown`, `cancel_requested`, `cancelled`. Public responses never include provider requests, private prepared context, access-policy hashes or credentials.
 
@@ -42,7 +42,7 @@ All supplied sources become durable authorization dependencies, including uncite
 
 Limits: prompt 8,192 UTF-8 bytes; four explicitly selected catalogs; search top four; twenty physical history messages (each user prompt and each available assistant response counts); twenty distinct dependencies and twenty citations; configured assembled context ceiling up to 98,304 bytes; provider request text at most 128 KiB. Exceeding a bound fails instead of silently truncating protected context. History stores this turn's sources separately and reassembles them once; it does not recursively embed previous requests. Failed, cancelled and uncertain user turns remain labeled history. A new conversation is required once its history budget is full.
 
-There are at most 100 conversations per owner/workspace, one active job per conversation, and 100 active jobs per workspace. Exact replay remains available before capacity checks. Private output retention lasts until conversation deletion; this is not a personal/team memory system.
+There are at most 100 conversations per owner/workspace, one active job per conversation, and 100 active jobs per workspace. Exact replay remains available before capacity checks. Private output retention lasts until conversation deletion unless a memory dependency is corrected, deleted or expires, in which case derived context and output are invalidated and purged. Reviewed private memories are separate resources; shared team memory remains future work.
 
 ## Durable dispatch, cancellation and apply
 
@@ -56,7 +56,7 @@ Apply is a single atomic transaction: validate exact job target and current note
 
 ## Deployment and evidence
 
-`dataslate-sylon-controller` requires verified-TLS PostgreSQL and `DATASLATE_SYLON_BINDINGS_FILE`. Its default probe address is `:8084` (`DATASLATE_SYLON_CONTROLLER_ADDR`). Selected catalog/search context additionally requires those existing binding files and only their relevant credentials/network egress. The worker does not need Kubernetes API credentials. Apply migration `008_sylon.sql` with the migration role before starting runtime roles.
+`dataslate-sylon-controller` requires verified-TLS PostgreSQL and `DATASLATE_SYLON_BINDINGS_FILE`. Its default probe address is `:8084` (`DATASLATE_SYLON_CONTROLLER_ADDR`). Selected catalog/search context additionally requires those existing binding files and only their relevant credentials/network egress. The worker does not need Kubernetes API credentials. Apply migrations through `009_sylon_memory.sql` with the migration role before starting current runtime roles. Memory remains disabled unless the binding explicitly enables it.
 
 Automated tests exercise both stores for idempotency races, owner/workspace isolation, bounded history, cancellation, uncertain dispatch recovery, expiry fencing, exact one-use apply, historical provenance, deletion/revocation and source-edit publication races. A real HTTPS Responses fixture plus PostgreSQL verifies the production LLM adapter through job publication and apply. TLS transport tests separately cover OAuth/bearer rotation, response validation and ambiguity. These tests establish the implemented boundary; they do not assert quality, cost or reliability for an untested external model or production cluster.
 

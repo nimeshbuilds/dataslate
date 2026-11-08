@@ -1,0 +1,88 @@
+{
+  "scope": "private memory integration with actual HTTP API, PostgreSQL, Sylon controller and local HTTPS model protocol fixture",
+  "authentication": "explicit development identity in a test-only harness; not production OIDC",
+  "savedAndCorrectedThroughBrowser": true,
+  "persistedRevisionAcrossProcessRestart": 2,
+  "exactRecalledRevision": 2,
+  "deletionConfirmed": true,
+  "dependentHistoryDenied": true,
+  "priorProcessStopped": true,
+  "sameHarnessBinaryAcrossRestart": "865008b3c8f0f821b48da95459ea6afc1510717708e99359c1a9c8e7e2b09be5",
+  "sdk": {
+    "scope": "actual HTTP API, PostgreSQL and Sylon cleanup controller; development identity",
+    "sdkSaveCorrectRecallDelete": true,
+    "exactMutationReplay": true,
+    "cliReplay": true,
+    "deletedReplayMinimal": true,
+    "noAdditionalProviderCallsForMemoryOperations": true
+  },
+  "completedAt": "2026-11-08T04:22:51.403Z",
+  "notTested": [
+    "external model quality or billing",
+    "consumer subscription authentication",
+    "browser OIDC login",
+    "EKS/S3",
+    "complete Kubernetes installation",
+    "HA/restore",
+    "performance at scale"
+  ],
+  "hardenedHarnessCheck": {
+    "scope": "test-only loopback development identity; real PostgreSQL handlers/controller; local HTTPS Responses protocol fixture",
+    "productionOIDC": false,
+    "externalProvider": false,
+    "sourceSha256": "3838e6e4573955eed4eba57aa8880d992d8d3a47359463afb623359817009790",
+    "testSha256": "b4f3eb4798ba1d07e83a51c6c6d45f08da51739b0c22dfd114e8482e669d198c",
+    "binarySha256": "03c169dffd24460189175b1a016beb1bda4faec71503f688df38a5aa79dee4c2",
+    "protocolGenerationPassed": true,
+    "memorySurvivedRestart": true,
+    "bindingAndEndpointStable": true,
+    "malformedRequestRejectedAndCounted": true,
+    "profileChangeRejected": true,
+    "cleanShutdowns": 2,
+    "privateStateCleaned": true,
+    "postLiveCleanupHardening": {
+      "change": "Retained provider listener is replaced only after a successful bind; occupied retained port leaves a closed non-nil listener for deferred cleanup.",
+      "sourceSha256": "a3dbb26833399ea372cb61a58064321f49dd55a631087d8954f5be7ce86c3364",
+      "testSha256": "64f3e5ba74fa37b9b31bcada852ff18f4a483f843416f6a6ec4bab5c2077be3d",
+      "binarySha256": "a90826fd2213149cd2c10acad5052b826699e399963b7aefaba25f86211087d3",
+      "raceTestsPassed": true,
+      "vetPassed": true,
+      "buildPassed": true,
+      "busyRetainedPortRefusalAndCleanupPassed": true,
+      "livePostgresRerun": false,
+      "note": "Original live evidence and hashes above are preserved; this final change affects the occupied-port failure branch and has a dedicated local regression."
+    },
+    "providerEvidence": {
+      "profile": "dataslate-memory-workspace-v2",
+      "protocolFixture": true,
+      "externalProvider": false,
+      "attempts": 3,
+      "accepted": 2,
+      "rejected": 1,
+      "memoryCitationsTransferred": 1
+    }
+  },
+  "cleanup": {
+    "scope": "task-owned loopback PostgreSQL and memory protocol fixture only",
+    "postgresStopped": true,
+    "databaseAndTLSMaterialRemoved": true,
+    "privateFixtureRemoved": true,
+    "oldHarnessCredentialsRemoved": true,
+    "ownedExtensionFilesRemoved": [
+      "vector.dylib",
+      "vector.control",
+      "vector--0.8.7.sql"
+    ],
+    "unrelatedServicesAndDeveloperToolsPreserved": true,
+    "awsResourcesChanged": false,
+    "completedAt": "2026-11-08T04:36:18.969954+00:00"
+  },
+  "finalWorkspace": {
+    "browserTests": 112,
+    "memoryBrowserTests": 31,
+    "productionBuildPassed": true,
+    "independentRevisionGuardReviewPassed": true,
+    "sourceManifestSha256": "a598ca73280b82677af5433281856b2ae34b947bc6a5f21bbb3bf9c1d126a0c6",
+    "note": "Ordinary browser fixtures are distinct from the earlier actual PostgreSQL two-phase browser check."
+  }
+}

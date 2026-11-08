@@ -2263,6 +2263,30 @@
                   "catalogBindingIds",
                   "searchBindingIds"
                 ]
+              },
+              "memory": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "enabled",
+                  "defaultTTLDays",
+                  "maxTTLDays"
+                ],
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  },
+                  "defaultTTLDays": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 365
+                  },
+                  "maxTTLDays": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 365
+                  }
+                }
               }
             },
             "required": [

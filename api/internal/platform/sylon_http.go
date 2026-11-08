@@ -9,7 +9,7 @@ import (
 
 func sylonFailure(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, ErrSylonAccess):
+	case errors.Is(err, ErrSylonAccess), errors.Is(err, ErrMemoryAccess):
 		fail(w, 403, "sylon_access_denied", "Current assistant and source grants are required.")
 	case errors.Is(err, ErrSylonRevision):
 		fail(w, 409, "sylon_revision_conflict", "The saved notebook revision or cell changed. Reload before continuing.")
@@ -33,12 +33,20 @@ func (s *Server) sylonCurrent(w http.ResponseWriter, r *http.Request, id string)
 }
 func (s *Server) authorizeSylonWork(ctx context.Context, work SylonWork, currentRevision bool) error {
 	j := work.Job
+	if j.MemoryInvalidated {
+		return ErrMemoryAccess
+	}
 	b, err := s.authorizedSylonBinding(j.WorkspaceID, j.BindingID, j.SubmittedBy)
 	if err != nil {
 		return err
 	}
 	if b.Hash() != work.PolicyHash {
 		return ErrSylonAccess
+	}
+	for _, m := range j.Memories {
+		if _, err := s.AuthorizeSylonMemory(ctx, b, j.SubmittedBy, m); err != nil {
+			return err
+		}
 	}
 	if j.Notebook != nil {
 		if !b.Context.NotebookCellSource {
@@ -137,7 +145,11 @@ func (s *Server) sylonBindings(w http.ResponseWriter, r *http.Request) {
 			publicContext := b.Context
 			publicContext.CatalogBindingIDs = append([]string{}, b.Context.CatalogBindingIDs...)
 			publicContext.SearchBindingIDs = append([]string{}, b.Context.SearchBindingIDs...)
-			items = append(items, map[string]any{"id": b.ID, "workspaceId": b.WorkspaceID, "name": b.Name, "policyVersion": b.PolicyVersion, "model": b.Provider.Model, "protocol": b.Provider.Protocol, "maxOutputTokens": b.Provider.MaxOutputTokens, "maxContextBytes": b.MaxContextBytes, "dataTransferAccepted": b.DataTransferAccepted, "context": publicContext})
+			item := map[string]any{"id": b.ID, "workspaceId": b.WorkspaceID, "name": b.Name, "policyVersion": b.PolicyVersion, "model": b.Provider.Model, "protocol": b.Provider.Protocol, "maxOutputTokens": b.Provider.MaxOutputTokens, "maxContextBytes": b.MaxContextBytes, "dataTransferAccepted": b.DataTransferAccepted, "context": publicContext}
+			if b.Memory != nil {
+				item["memory"] = b.Memory
+			}
+			items = append(items, item)
 		}
 	}
 	writeJSON(w, 200, map[string]any{"items": items})
@@ -210,6 +222,10 @@ func (s *Server) getSylonConversation(w http.ResponseWriter, r *http.Request) {
 	}
 	messages := []SylonJob{}
 	for _, work := range history {
+		if !s.sylonRequestRoleAllowed(r, work) {
+			sylonFailure(w, ErrSylonAccess)
+			return
+		}
 		job, err := s.sylonPublicJob(r.Context(), work)
 		if err != nil {
 			sylonFailure(w, err)
@@ -265,12 +281,20 @@ func (s *Server) createSylonMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, work := range history {
+		if !s.sylonRequestRoleAllowed(r, work) {
+			sylonFailure(w, ErrSylonAccess)
+			return
+		}
 		if err = s.authorizeSylonWork(r.Context(), work, false); err != nil {
 			sylonFailure(w, err)
 			return
 		}
 	}
 	work := SylonWork{Job: newSylonJob(conversation, b, in), PolicyHash: b.Hash()}
+	if !s.sylonRequestRoleAllowed(r, work) {
+		sylonFailure(w, ErrSylonAccess)
+		return
+	}
 	if err = s.authorizeSylonWork(r.Context(), work, false); err != nil {
 		sylonFailure(w, err)
 		return
@@ -283,6 +307,10 @@ func (s *Server) createSylonMessage(w http.ResponseWriter, r *http.Request) {
 	accepted, err := s.Store.SylonWork(r.Context(), ws, job.ID, owner)
 	if err != nil {
 		sylonFailure(w, err)
+		return
+	}
+	if !s.sylonRequestRoleAllowed(r, accepted) {
+		sylonFailure(w, ErrSylonAccess)
 		return
 	}
 	job, err = s.sylonPublicJob(r.Context(), accepted)
@@ -303,6 +331,10 @@ func (s *Server) getSylonJob(w http.ResponseWriter, r *http.Request) {
 	work, err := s.Store.SylonWork(r.Context(), r.PathValue("workspaceId"), r.PathValue("id"), subjectFor(principal(r)))
 	if err != nil {
 		sylonFailure(w, err)
+		return
+	}
+	if !s.sylonRequestRoleAllowed(r, work) {
+		sylonFailure(w, ErrSylonAccess)
 		return
 	}
 	out, err := s.sylonPublicJob(r.Context(), work)
@@ -355,4 +387,26 @@ func (s *Server) applySylonCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, out)
+}
+
+func (s *Server) sylonRequestRoleAllowed(r *http.Request, work SylonWork) bool {
+	p := principal(r)
+	if p.Can(work.Job.WorkspaceID, true) {
+		return true
+	}
+	if work.Job.Notebook != nil {
+		return false
+	}
+	for _, d := range work.Context.Dependencies {
+		if d.Kind == "notebook-cell" {
+			return false
+		}
+	}
+	for _, sel := range work.Job.Memories {
+		m, e := s.Store.SylonMemoryWork(r.Context(), work.Job.WorkspaceID, sel.ID, work.Job.SubmittedBy)
+		if e != nil || !memoryRoleAllowed(p, m) {
+			return false
+		}
+	}
+	return p.Can(work.Job.WorkspaceID, false)
 }

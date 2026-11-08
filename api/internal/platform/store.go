@@ -8,6 +8,7 @@ import (
 )
 
 type Store interface {
+	SylonMemoryStore
 	SylonStore
 	SearchStore
 	CatalogStore
@@ -35,6 +36,9 @@ type Store interface {
 	AdvanceRun(context.Context, RunLease, RunUpdate) (Run, error)
 }
 type MemoryStore struct {
+	memories              map[string]SylonMemoryWork
+	memoryMutations       map[string]memoryMutationRecord
+	memoryPurges          []memoryPurge
 	sylonConversations    map[string]SylonConversation
 	sylonJobs             map[string]*memorySylonJob
 	searchJobs            map[string]*memorySearchJob
@@ -55,7 +59,7 @@ type MemoryStore struct {
 
 func NewMemoryStore() *MemoryStore {
 	now := time.Now().UTC()
-	return &MemoryStore{sylonConversations: map[string]SylonConversation{}, sylonJobs: map[string]*memorySylonJob{}, searchJobs: map[string]*memorySearchJob{}, searchKeys: map[string]string{}, searchDocuments: map[string]SearchDocument{}, catalogObservations: map[string]CatalogObservation{}, queries: map[string]*memoryQuery{}, queryKeys: map[string]string{}, workspaces: map[string]Workspace{"default": {Resource: Resource{ID: "default", CreatedAt: now, UpdatedAt: now, Revision: 1}, Name: "Development workspace", Slug: "default"}}, notebooks: map[string]Notebook{}, history: map[string][]Notebook{}, executions: map[string]*memoryExecution{}, runKeys: map[string]string{}, ingestion: map[string]IngestionPipeline{}, ingestionReservations: map[string]ingestionReservation{}}
+	return &MemoryStore{memories: map[string]SylonMemoryWork{}, memoryMutations: map[string]memoryMutationRecord{}, sylonConversations: map[string]SylonConversation{}, sylonJobs: map[string]*memorySylonJob{}, searchJobs: map[string]*memorySearchJob{}, searchKeys: map[string]string{}, searchDocuments: map[string]SearchDocument{}, catalogObservations: map[string]CatalogObservation{}, queries: map[string]*memoryQuery{}, queryKeys: map[string]string{}, workspaces: map[string]Workspace{"default": {Resource: Resource{ID: "default", CreatedAt: now, UpdatedAt: now, Revision: 1}, Name: "Development workspace", Slug: "default"}}, notebooks: map[string]Notebook{}, history: map[string][]Notebook{}, executions: map[string]*memoryExecution{}, runKeys: map[string]string{}, ingestion: map[string]IngestionPipeline{}, ingestionReservations: map[string]ingestionReservation{}}
 }
 func (*MemoryStore) Ready(context.Context) error { return nil }
 func (*MemoryStore) Mode() string                { return "memory" }

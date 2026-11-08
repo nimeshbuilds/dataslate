@@ -20,6 +20,9 @@ func (c *SylonController) server() *Server {
 	return &Server{Config: c.Config, Store: c.Store, SearchEmbedder: c.Embedder, CatalogBackend: c.CatalogBackend}
 }
 func (c *SylonController) ReconcileOnce(ctx context.Context, owner string) (bool, error) {
+	if _, err := c.Store.PurgeSylonMemories(ctx, 100); err != nil {
+		return false, err
+	}
 	work, lease, err := c.Store.AcquireSylonJob(ctx, owner, 120*time.Second)
 	if errors.Is(err, ErrNotFound) {
 		return false, nil
@@ -87,7 +90,7 @@ func (c *SylonController) ReconcileOnce(ctx context.Context, owner string) (bool
 	err = c.Store.SaveSylonContext(saveCtx, lease, prepared)
 	saveDone()
 	if errors.Is(err, ErrSylonCancelled) {
-		return finish("cancelled", "Output discarded before generation.", &prepared, nil)
+		return finish("cancelled", "Output discarded before generation.", nil, nil)
 	}
 	if err != nil {
 		return true, err
