@@ -32,7 +32,17 @@ spec:
           securityContext:
             {{- include "dataslate.containerSecurityContext" . | nindent 12 }}
           env:
+            {{- if .Values.migrations.databaseSecret }}
+            - name: DATASLATE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.migrations.databaseSecret.name }}
+                  key: {{ .Values.migrations.databaseSecret.key }}
+            - {name: PGSSLMODE, value: verify-full}
+            - {name: PGSSLROOTCERT, value: /etc/dataslate/postgres/ca.crt}
+            {{- else }}
             {{- include "dataslate.databaseEnv" . | nindent 12 }}
+            {{- end }}
           resources:
             {{- toYaml .Values.api.resources | nindent 12 }}
           volumeMounts:

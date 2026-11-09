@@ -18,3 +18,5 @@
 .preview-save{font-size:8px}.preview-status{font-size:8px}
 @media(max-width:600px){.preview-save,.preview-status{font-size:7px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{transition:none!important;animation:none!important}}
+
+.roadmap-footer>p a{text-decoration:underline;text-underline-offset:3px}

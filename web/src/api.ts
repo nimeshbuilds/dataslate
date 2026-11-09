@@ -2,7 +2,7 @@ export interface Workspace { id: string; name: string; slug: string; revision: n
 export interface Cell { id: string; language: 'python' | 'sql'; source: string }
 export interface Notebook { id: string; workspaceId: string; name: string; kind: 'notebook' | 'sql'; cells: Cell[]; revision: number; createdAt: string; updatedAt: string }
 export interface Module { id: string; name: string; category: string; implementation: 'foundation' | 'planned'; description: string; dependencies: string[]; modes: ('managed' | 'external')[]; enabledByDefault: boolean }
-export interface PlatformStatus { product: string; assistant: string; phase: string; authMode: string; persistence: string; executionEnabled: boolean; notebookExecutionEnabled?: boolean; ingestionExecutionEnabled?: boolean; sqlExecutionEnabled?: boolean }
+export interface PlatformStatus { permissions?: { createWorkspace: boolean }; product: string; assistant: string; phase: string; authMode: string; persistence: string; executionEnabled: boolean; notebookExecutionEnabled?: boolean; ingestionExecutionEnabled?: boolean; sqlExecutionEnabled?: boolean }
 export interface DeploymentPlan { cloud: string; namespace: string; actions: { moduleId: string; mode: string; action: string; verification: string }[]; warnings: string[]; executable: false }
 export interface ManifestPreview { manifest: object; warnings: string[]; submitted: false }
 export interface AuthConfig { mode: 'development' | 'oidc'; issuer?: string; clientId?: string; audience?: string; scopes?: string[] | string }

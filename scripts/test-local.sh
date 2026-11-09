@@ -12,7 +12,7 @@ if [[ -z "${DATASLATE_TEST_DATABASE_URL:-}" ]]; then
 fi
 # The complete local gate must exercise hybrid retrieval, not silently skip it.
 export DATASLATE_TEST_REQUIRE_VECTOR=1
-for executable in go npm "$dataslate_test_python" "$dataslate_test_helm"; do
+for executable in go npm node psql "$dataslate_test_python" "$dataslate_test_helm"; do
   command -v "$executable" >/dev/null || { echo "Missing prerequisite: $executable" >&2; exit 2; }
 done
 "$dataslate_test_python" -c 'import yaml' || { echo 'Install deploy/tests/requirements.txt into the selected Python environment.' >&2; exit 2; }
@@ -23,10 +23,13 @@ done
 PYTHONPATH=sdk/python/src "$dataslate_test_python" -m unittest discover -s sdk/python/tests -v
 PYTHON="$dataslate_test_python" bash scripts/smoke.sh
 (cd web && npm run build && npm test)
+node site/check-browser.mjs
 "$dataslate_test_python" -m unittest discover -s runtime/ingestion/tests -p 'test_*.py' -v
 HELM_BIN="$dataslate_test_helm" "$dataslate_test_python" -m unittest discover -s deploy/sql -p 'test_*.py' -v
 HELM_BIN="$dataslate_test_helm" "$dataslate_test_python" -m unittest discover -s deploy/polaris -p 'test_*.py' -v
 HELM_BIN="$dataslate_test_helm" AIRFLOW_CHART="$dataslate_test_airflow_chart" "$dataslate_test_python" -m unittest discover -s deploy/airflow -p 'test_*.py' -v
+HELM_BIN="$dataslate_test_helm" "$dataslate_test_python" -m unittest discover -s deploy/setup -p 'test_*.py' -v
+"$dataslate_test_python" -m unittest discover -s deploy/tests -p 'test_*.py' -v
 "$dataslate_test_python" -m unittest discover -s deploy/compute -p 'test_*.py' -v
 PYTHON_BIN="$dataslate_test_python" HELM_BIN="$dataslate_test_helm" bash deploy/scripts/check.sh
 DATASLATE_PREFLIGHT_HELM="$dataslate_test_helm" "$dataslate_test_python" -m unittest discover -s deploy/preflight -p 'test_*.py' -v

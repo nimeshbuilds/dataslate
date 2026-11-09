@@ -1,0 +1,764 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-11-08",
+  "timezone": "America/Chicago",
+  "scope": "local Kubernetes core installation only",
+  "status": "passed-with-documented-boundaries",
+  "baseRevision": "af8b173e682f36f500fb6e4bd5571421dadf58b9",
+  "platform": {
+    "architecture": "linux/arm64",
+    "kubernetes": "v1.35.0+k3s1",
+    "helm": "4.3.0",
+    "ownedVM": {
+      "cpus": 3,
+      "memoryGiB": 5,
+      "nodes": 1
+    },
+    "apiReplicas": 2,
+    "webReplicas": 2
+  },
+  "images": {
+    "api": {
+      "manifestDigest": "sha256:669e669cbc5c0955f1eea7ab70074c4424d0a9854fcb3edad04873c0f4962ad8",
+      "configDigest": "sha256:aab1e5ed029bcf919128c8c97ac471ae7dfae88863332b07209e8da35e3f8fcd",
+      "contextSha256": "a904b634115f70774ebcf72b94c885ea54cb8c62743493a2133f697f5f17bf84"
+    },
+    "web": {
+      "manifestDigest": "sha256:6da7d317abc188eb1325d88bc1086700c7a0e5a1f2282ea51cd433f53fe56c65",
+      "configDigest": "sha256:b08e5a02da38aff5e3c75f82925498cc6591453ff40893d52b86e132c2a02ef6",
+      "contextSha256": "07644d91d0d59e18b283f4ed32a13b48060113beab5676f44efa825e6f498594"
+    },
+    "postgres": "postgres:17.11-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994",
+    "keycloak": "quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b",
+    "ingress": "traefik:v3.5.1@sha256:664bb8415fddadb71c2682b329c427d12c7d53593171665f2b7b6ff924509bc1"
+  },
+  "sourceVerification": {
+    "api": {
+      "archiveFileCount": 145,
+      "buildFileMapSha256": "4880c006e681eecb55c4e03848f074f1b59cbd423047cc2b65b4c4143370ae1c",
+      "runtimeSourceMatchesRelease": true,
+      "documentationChangesAfterBuild": [
+        "README.md"
+      ],
+      "nonRuntimeFixtureMetadata": [],
+      "comparison": "unchanged tracked files compared to HEAD blobs; changed/new files compared byte-for-byte to working tree"
+    },
+    "web": {
+      "archiveFileCount": 64,
+      "buildFileMapSha256": "0511e3f4d40b74d22dee2aa4da106319ac99583dded5d801fcaae662ad6f8acb",
+      "runtimeSourceMatchesRelease": true,
+      "documentationChangesAfterBuild": [],
+      "nonRuntimeFixtureMetadata": [
+        "test-results-workflow-live/.last-run.json"
+      ],
+      "comparison": "unchanged tracked files compared to HEAD blobs; changed/new files compared byte-for-byte to working tree"
+    }
+  },
+  "harnessSha256": {
+    "scripts/qualify-core-fixtures.py": "9a16c857609980178b96ba8e5bc69f2ea9a6096634efd87b094ac73b7cb24daa",
+    "scripts/qualify-core-database.py": "b5838682f4b530b2f108e66115396817a7207cb64dc11d2afd8bf80cb3087309",
+    "scripts/qualify-core-browser.mjs": "ea88e30562bd3da97a4b1ce31ae1f271edadb6641bee9356509cd2a296214905",
+    "deploy/setup/generate.py": "e1ad6605b538f364ec865cde889ded92eca99ceef505f26217701116122627bd",
+    "deploy/setup/runtime-role.sql": "0917d50f4de4c888d1fbf10af29a90892eb84d16ee89eb5db1e8a23b9f0a18b5",
+    "deploy/setup/test_runtime_role_postgres.py": "f818e0413341c2f90e4fc429b1ef8b8c7bef9cb29a22722925edccaf372b5fec",
+    "deploy/scripts/verify-install.py": "6d97c134dc41eb68d70fb12e45f2738ed5f187e97382204f04ebfa000fcdf839",
+    "web/nginx.conf.template": "3e195380499f8e6d131ec775f115eb5b2b65ca2902d7c1a181e1d7eb7b02d89a"
+  },
+  "preflight": {
+    "beforeInstallCounts": {
+      "observed": 21,
+      "unknown": 2
+    },
+    "afterInstallCounts": {
+      "observed": 21,
+      "unknown": 2
+    },
+    "qualification": "not-performed",
+    "unresolved": [
+      "network.enforcement",
+      "integrations.live"
+    ],
+    "note": "read-only inventory retains unknown live categories; separate tests below supply their bounded evidence"
+  },
+  "helm": {
+    "initialMigration": "dataslate-migrate-1",
+    "webUpdateMigration": "dataslate-migrate-2",
+    "runtimeGrantsAfterEachMigration": true,
+    "previousReleaseSchemaUpgradeTested": false
+  },
+  "database": {
+    "scope": "disposable fixture only; not production qualification",
+    "checks": [
+      {
+        "check": "runtime identity and verified TLS connection",
+        "status": "passed"
+      },
+      {
+        "check": "application CRUD with runtime principal",
+        "status": "passed"
+      },
+      {
+        "check": "public table DDL denied",
+        "status": "passed"
+      },
+      {
+        "check": "database schema DDL denied",
+        "status": "passed"
+      },
+      {
+        "check": "migration ledger insert denied",
+        "status": "passed"
+      },
+      {
+        "check": "migration ledger update denied",
+        "status": "passed"
+      },
+      {
+        "check": "migration ledger delete denied",
+        "status": "passed"
+      },
+      {
+        "check": "runtime can validate the migration ledger",
+        "status": "passed"
+      },
+      {
+        "check": "grant script is repeatable as the real TLS migration identity",
+        "status": "passed"
+      },
+      {
+        "check": "missing database variable fails",
+        "status": "passed"
+      },
+      {
+        "check": "missing migration identity variable fails",
+        "status": "passed"
+      },
+      {
+        "check": "missing runtime identity variable fails",
+        "status": "passed"
+      },
+      {
+        "check": "grant script rejects the runtime identity as its operator",
+        "status": "passed"
+      },
+      {
+        "check": "unsafe membership fixture established",
+        "status": "passed"
+      },
+      {
+        "check": "grant script rejects NOINHERIT membership",
+        "status": "passed"
+      },
+      {
+        "check": "unsafe schema ownership fixture established",
+        "status": "passed"
+      },
+      {
+        "check": "grant script rejects runtime schema ownership",
+        "status": "passed"
+      },
+      {
+        "check": "runtime boundary restored after negative checks",
+        "status": "passed"
+      }
+    ]
+  },
+  "psqlGuardRegression": {
+    "passed": 6,
+    "realPostgreSQLChecks": 4,
+    "serviceFileParserChecks": 2,
+    "serverVersion": "17.11",
+    "clientVersion": "17.11",
+    "tls": "verify-full"
+  },
+  "anonymousHTTPS": {
+    "checks": 5,
+    "paths": {
+      "/web-healthz": 200,
+      "/healthz": 200,
+      "/readyz": 200,
+      "/api/v1/auth/config": 200,
+      "/api/v1/status": 401
+    },
+    "certificateTrust": "additional private CA; hostname verification required",
+    "route": "real TLS ingress service on port 443"
+  },
+  "podBoundary": [
+    {
+      "component": "api",
+      "noServiceAccountToken": true,
+      "readOnlyRootFilesystem": true,
+      "allCapabilitiesDropped": true,
+      "secretNames": [
+        "dataslate-runtime",
+        "fixture-ca"
+      ]
+    },
+    {
+      "component": "api",
+      "noServiceAccountToken": true,
+      "readOnlyRootFilesystem": true,
+      "allCapabilitiesDropped": true,
+      "secretNames": [
+        "dataslate-runtime",
+        "fixture-ca"
+      ]
+    },
+    {
+      "component": "migrations",
+      "noServiceAccountToken": true,
+      "readOnlyRootFilesystem": true,
+      "allCapabilitiesDropped": true,
+      "secretNames": [
+        "dataslate-migrator",
+        "fixture-ca"
+      ]
+    },
+    {
+      "component": "web",
+      "noServiceAccountToken": true,
+      "readOnlyRootFilesystem": true,
+      "allCapabilitiesDropped": true,
+      "secretNames": []
+    },
+    {
+      "component": "web",
+      "noServiceAccountToken": true,
+      "readOnlyRootFilesystem": true,
+      "allCapabilitiesDropped": true,
+      "secretNames": []
+    }
+  ],
+  "networkBoundary": {
+    "checks": [
+      {
+        "name": "web-labelled pod reaches API readiness",
+        "status": "passed"
+      },
+      {
+        "name": "unlabelled pod cannot connect to the same API service",
+        "status": "passed",
+        "observed": "resolved service IP; connection refused"
+      }
+    ],
+    "scope": "actual k3s NetworkPolicy ingress path only; not full egress or cloud policy qualification"
+  },
+  "browserSeed": {
+    "schemaVersion": 1,
+    "mode": "seed",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "disposable_fixture_identity",
+        "passed": true
+      },
+      {
+        "name": "admin.authorization_code_pkce",
+        "passed": true
+      },
+      {
+        "name": "admin.token_exchange_response",
+        "passed": true
+      },
+      {
+        "name": "admin.pkce_verifier_matches_challenge",
+        "passed": true
+      },
+      {
+        "name": "admin.access_claims_only",
+        "passed": true
+      },
+      {
+        "name": "admin.verified_api_permissions",
+        "passed": true
+      },
+      {
+        "name": "admin.id_token_rejected_by_api",
+        "passed": true
+      },
+      {
+        "name": "admin.workspace_membership_filter",
+        "passed": true
+      },
+      {
+        "name": "admin.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "admin.workspace_created_from_ui",
+        "passed": true
+      },
+      {
+        "name": "admin.creation_receipt_without_membership",
+        "passed": true
+      },
+      {
+        "name": "admin.done_does_not_resubmit_or_select",
+        "passed": true
+      },
+      {
+        "name": "admin.created_workspace_membership_denied",
+        "passed": true
+      },
+      {
+        "name": "admin.after_operations.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "editor.authorization_code_pkce",
+        "passed": true
+      },
+      {
+        "name": "editor.token_exchange_response",
+        "passed": true
+      },
+      {
+        "name": "editor.pkce_verifier_matches_challenge",
+        "passed": true
+      },
+      {
+        "name": "editor.access_claims_only",
+        "passed": true
+      },
+      {
+        "name": "editor.verified_api_permissions",
+        "passed": true
+      },
+      {
+        "name": "editor.id_token_rejected_by_api",
+        "passed": true
+      },
+      {
+        "name": "editor.workspace_membership_filter",
+        "passed": true
+      },
+      {
+        "name": "editor.create_workspace_hidden",
+        "passed": true
+      },
+      {
+        "name": "editor.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "editor.notebook_saved_from_ui",
+        "passed": true
+      },
+      {
+        "name": "editor.notebook_snapshot_matches",
+        "passed": true
+      },
+      {
+        "name": "editor.notebook_readback_matches",
+        "passed": true
+      },
+      {
+        "name": "editor.saved_source_visible",
+        "passed": true
+      },
+      {
+        "name": "editor.cross_workspace_denied",
+        "passed": true
+      },
+      {
+        "name": "editor.after_operations.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "viewer.authorization_code_pkce",
+        "passed": true
+      },
+      {
+        "name": "viewer.token_exchange_response",
+        "passed": true
+      },
+      {
+        "name": "viewer.pkce_verifier_matches_challenge",
+        "passed": true
+      },
+      {
+        "name": "viewer.access_claims_only",
+        "passed": true
+      },
+      {
+        "name": "viewer.verified_api_permissions",
+        "passed": true
+      },
+      {
+        "name": "viewer.id_token_rejected_by_api",
+        "passed": true
+      },
+      {
+        "name": "viewer.workspace_membership_filter",
+        "passed": true
+      },
+      {
+        "name": "viewer.create_workspace_hidden",
+        "passed": true
+      },
+      {
+        "name": "viewer.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "viewer.notebook_read_allowed",
+        "passed": true
+      },
+      {
+        "name": "viewer.notebook_write_denied",
+        "passed": true
+      },
+      {
+        "name": "viewer.denied_write_preserves_notebook",
+        "passed": true
+      },
+      {
+        "name": "viewer.after_operations.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "outsider.authorization_code_pkce",
+        "passed": true
+      },
+      {
+        "name": "outsider.token_exchange_response",
+        "passed": true
+      },
+      {
+        "name": "outsider.pkce_verifier_matches_challenge",
+        "passed": true
+      },
+      {
+        "name": "outsider.access_claims_only",
+        "passed": true
+      },
+      {
+        "name": "outsider.verified_api_permissions",
+        "passed": true
+      },
+      {
+        "name": "outsider.id_token_rejected_by_api",
+        "passed": true
+      },
+      {
+        "name": "outsider.workspace_membership_filter",
+        "passed": true
+      },
+      {
+        "name": "outsider.create_workspace_hidden",
+        "passed": true
+      },
+      {
+        "name": "outsider.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "outsider.workspace_read_denied",
+        "passed": true
+      },
+      {
+        "name": "outsider.notebook_read_denied",
+        "passed": true
+      },
+      {
+        "name": "outsider.after_operations.no_tokens_in_browser_storage",
+        "passed": true
+      }
+    ],
+    "runId": "5e7472ba-4068-4f44-a47a-feecd970ab6e",
+    "createdWorkspaceId": "ws-b5a80d2379ed437e2b1a354dfa403aa1",
+    "notebookId": "nb-1061e368ae13bc5fba522a54403dcb48",
+    "workspaceId": "team-alpha",
+    "checkCount": 54
+  },
+  "restart": {
+    "postgres": {
+      "podUID": "bdabffcb-0668-426b-884e-4424b124a133",
+      "podName": "postgres-54667f9c77-knn94",
+      "restartCountBefore": 0,
+      "restartCountAfter": 1,
+      "persistentVolumeClaim": "postgres-data",
+      "readyAfterRestart": true,
+      "method": "SIGINT fast shutdown after SIGTERM smart shutdown waited for open client sessions"
+    },
+    "apiPodUIDsBefore": [
+      "570a15ca-6012-4ed9-a49f-388688c04de7",
+      "8fe06195-25c9-46bf-931b-c40d2f69b9c1"
+    ],
+    "apiPodUIDsAfter": [
+      "74b9eff1-d84c-4445-91b7-3fbae51c204c",
+      "689b4a65-feaa-4896-bb66-351bc9dffe71"
+    ],
+    "apiReadyAfterRestart": true
+  },
+  "browserAfterRestart": {
+    "schemaVersion": 1,
+    "mode": "read",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "disposable_fixture_identity",
+        "passed": true
+      },
+      {
+        "name": "previous_seed_receipt_valid",
+        "passed": true
+      },
+      {
+        "name": "admin.authorization_code_pkce",
+        "passed": true
+      },
+      {
+        "name": "admin.token_exchange_response",
+        "passed": true
+      },
+      {
+        "name": "admin.pkce_verifier_matches_challenge",
+        "passed": true
+      },
+      {
+        "name": "admin.access_claims_only",
+        "passed": true
+      },
+      {
+        "name": "admin.verified_api_permissions",
+        "passed": true
+      },
+      {
+        "name": "admin.id_token_rejected_by_api",
+        "passed": true
+      },
+      {
+        "name": "admin.workspace_membership_filter",
+        "passed": true
+      },
+      {
+        "name": "admin.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "admin.after_operations.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "editor.authorization_code_pkce",
+        "passed": true
+      },
+      {
+        "name": "editor.token_exchange_response",
+        "passed": true
+      },
+      {
+        "name": "editor.pkce_verifier_matches_challenge",
+        "passed": true
+      },
+      {
+        "name": "editor.access_claims_only",
+        "passed": true
+      },
+      {
+        "name": "editor.verified_api_permissions",
+        "passed": true
+      },
+      {
+        "name": "editor.id_token_rejected_by_api",
+        "passed": true
+      },
+      {
+        "name": "editor.workspace_membership_filter",
+        "passed": true
+      },
+      {
+        "name": "editor.create_workspace_hidden",
+        "passed": true
+      },
+      {
+        "name": "editor.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "editor.persisted_notebook_read",
+        "passed": true
+      },
+      {
+        "name": "editor.notebook_snapshot_matches",
+        "passed": true
+      },
+      {
+        "name": "editor.notebook_readback_matches",
+        "passed": true
+      },
+      {
+        "name": "editor.saved_source_visible",
+        "passed": true
+      },
+      {
+        "name": "editor.cross_workspace_denied",
+        "passed": true
+      },
+      {
+        "name": "editor.after_operations.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "viewer.authorization_code_pkce",
+        "passed": true
+      },
+      {
+        "name": "viewer.token_exchange_response",
+        "passed": true
+      },
+      {
+        "name": "viewer.pkce_verifier_matches_challenge",
+        "passed": true
+      },
+      {
+        "name": "viewer.access_claims_only",
+        "passed": true
+      },
+      {
+        "name": "viewer.verified_api_permissions",
+        "passed": true
+      },
+      {
+        "name": "viewer.id_token_rejected_by_api",
+        "passed": true
+      },
+      {
+        "name": "viewer.workspace_membership_filter",
+        "passed": true
+      },
+      {
+        "name": "viewer.create_workspace_hidden",
+        "passed": true
+      },
+      {
+        "name": "viewer.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "viewer.notebook_read_allowed",
+        "passed": true
+      },
+      {
+        "name": "viewer.notebook_write_denied",
+        "passed": true
+      },
+      {
+        "name": "viewer.denied_write_preserves_notebook",
+        "passed": true
+      },
+      {
+        "name": "viewer.after_operations.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "outsider.authorization_code_pkce",
+        "passed": true
+      },
+      {
+        "name": "outsider.token_exchange_response",
+        "passed": true
+      },
+      {
+        "name": "outsider.pkce_verifier_matches_challenge",
+        "passed": true
+      },
+      {
+        "name": "outsider.access_claims_only",
+        "passed": true
+      },
+      {
+        "name": "outsider.verified_api_permissions",
+        "passed": true
+      },
+      {
+        "name": "outsider.id_token_rejected_by_api",
+        "passed": true
+      },
+      {
+        "name": "outsider.workspace_membership_filter",
+        "passed": true
+      },
+      {
+        "name": "outsider.create_workspace_hidden",
+        "passed": true
+      },
+      {
+        "name": "outsider.no_tokens_in_browser_storage",
+        "passed": true
+      },
+      {
+        "name": "outsider.workspace_read_denied",
+        "passed": true
+      },
+      {
+        "name": "outsider.notebook_read_denied",
+        "passed": true
+      },
+      {
+        "name": "outsider.after_operations.no_tokens_in_browser_storage",
+        "passed": true
+      }
+    ],
+    "runId": "5e7472ba-4068-4f44-a47a-feecd970ab6e",
+    "createdWorkspaceId": "ws-b5a80d2379ed437e2b1a354dfa403aa1",
+    "notebookId": "nb-1061e368ae13bc5fba522a54403dcb48",
+    "workspaceId": "team-alpha",
+    "checkCount": 51
+  },
+  "transientFailure": {
+    "firstPostRestartBrowserResult": {
+      "schemaVersion": 1,
+      "mode": "read",
+      "status": "failed",
+      "checks": [
+        {
+          "name": "disposable_fixture_identity",
+          "passed": true
+        },
+        {
+          "name": "previous_seed_receipt_valid",
+          "passed": true
+        },
+        {
+          "name": "admin.authorization_code_pkce",
+          "passed": true
+        }
+      ],
+      "runId": "5e7472ba-4068-4f44-a47a-feecd970ab6e",
+      "createdWorkspaceId": "ws-b5a80d2379ed437e2b1a354dfa403aa1",
+      "failedCheck": "admin.token_exchange_response",
+      "checkCount": 3
+    },
+    "causeObserved": "Keycloak logged closed PostgreSQL connections after fixture database fast shutdown",
+    "recovery": "fresh browser retry passed all four logins and exact previous notebook readback",
+    "uninterruptedAvailabilityClaimed": false
+  },
+  "regressions": {
+    "setupGenerator": 21,
+    "verifier": 7,
+    "workspaceBrowser": 165,
+    "siteBrowser": 20,
+    "siteRepositoryLinks": 32,
+    "api": "full local race suite and vet passed; database-gated tests skipped locally and required in CI"
+  },
+  "limitations": [
+    "Core profile leaves Spark, ingestion, SQL, catalog, publication, search, Sylon and Airflow modules disabled.",
+    "No EKS/S3, Azure or GCP workload identity or lake qualification.",
+    "No clean-environment restore, prior-release schema migration, sustained load, high availability or complete Databricks parity.",
+    "Fixture Keycloak and Traefik are not new managed product profiles.",
+    "Browser explicitly pins the fixture certificate after CA/hostname verification; host trust store and DNS were unchanged.",
+    "Images were built/imported locally, not published as registry releases."
+  ],
+  "cleanup": {
+    "status": "completed",
+    "ownedVMAndDataDeleted": true,
+    "ownedPortForwardsStopped": true,
+    "fixtureCredentialsKeysAndKubeconfigDeleted": true,
+    "unrelatedDeveloperToolsPreserved": true,
+    "cloudResourcesUsed": false,
+    "generatedCredentialScanFiles": 50,
+    "generatedCredentialMatches": 0
+  }
+}

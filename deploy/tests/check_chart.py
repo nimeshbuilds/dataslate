@@ -132,6 +132,12 @@ def main():
     assert issuer["value"] == "https://identity.example.com:8443/realms/dataslate"
     print("PASS custom HTTPS and PostgreSQL ports: rendered policy matches explicit endpoint configuration")
 
+    from check_oidc_chart import check_oidc_chart
+    check_oidc_chart(run, external_args)
+
+    from check_migration_chart import check_migration_chart
+    check_migration_chart(run, external_args)
+
     from check_execution_chart import check_execution_chart
     check_execution_chart(run, external_args)
     from check_sql_chart import check_sql_chart

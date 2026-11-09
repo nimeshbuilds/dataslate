@@ -2,6 +2,8 @@
 
 This directory deploys the **real DataSlate API and web application**, with verified OIDC, PostgreSQL persistence and a versioned migration Job. It supports an existing PostgreSQL database or a persistent CloudNativePG `Cluster`. The first target is **AWS EKS with S3**, serving teams within one organization.
 
+Start with the [development and production quickstart](quickstart.md). The [offline setup helper](setup/README.md) creates reviewed core values, an actual Helm render, named prerequisites and a context-pinned runbook with separate migration/runtime database identities. It never contacts or changes a cluster.
+
 **This is an implementation foundation, not a completed lakehouse distribution.** The UI/API edit workspace resources, generate deployment plans/previews and, with execution explicitly enabled, queue approved immutable applications or saved Python notebook batches for the Spark controller. Optional profiles also configure incremental file ingestion, Trino SQL, Polaris metadata, search and Sylon with private memory. Interactive notebook sessions and broader connectors remain under development; implemented adapters do not qualify the combined cloud runtime. See [the capability inventory](capabilities.md) for every broader module and its current status. Installing this chart does not install those modules.
 
 ## Ownership model
@@ -21,7 +23,7 @@ With execution disabled, application service accounts have **no Kubernetes API r
 1. A dedicated namespace and a CNI enforcing Kubernetes NetworkPolicy. The [namespace example](examples/namespace.yaml) enables restricted Pod Security for a new namespace; inspect existing labels before applying it.
 2. Built and published DataSlate API/web images, using each component's Dockerfile. The example registry URLs are placeholders, not published product images. Use immutable image digests for release deployments.
 3. An OIDC provider configured for a public browser client, Authorization Code + PKCE, an access token for `dataslate-api`, and the exact HTTPS callback `https://YOUR_HOST/auth/callback`. The browser client needs no client secret. Map the claims described in [the foundation contract](../docs/implementation/foundation-contract.md); do not grant every authenticated user platform administrator.
-4. A reachable PostgreSQL database with a dedicated `dataslate` database owner for initial migration, and trusted TLS. Supply a Secret containing `database-url` and a separate Secret containing the trusted `ca.crt` bundle. Do not put credentials in Helm values, Git, terminal history or examples. The URL must use the database's real DNS name and `sslmode=verify-full`. The chart also sets `PGSSLMODE=verify-full` and `PGSSLROOTCERT`; the API must reject insecure production settings.
+4. A reachable PostgreSQL database with a dedicated owner for migration, a distinct restricted runtime role, and trusted TLS. Supply separate URL Secrets via `migrations.databaseSecret: {name,key}` and `postgres.external`, plus a CA Secret. The [runtime grants procedure](setup/README.md#database-role-boundary) runs after migration and keeps the migration ledger read-only. Do not put credentials in Helm values, Git, terminal history or examples. URLs must use the database's real DNS name and `sslmode=verify-full`. The chart also sets `PGSSLMODE=verify-full` and `PGSSLROOTCERT`; the API rejects insecure production settings. Omitting `migrations.databaseSecret` preserves the prior shared-credential compatibility profile; it does not provide the hardened role separation.
 5. For the managed database profile: a reviewed CNPG operator, three schedulable nodes, an explicit persistent storage class, and a backup/restore design. The supplied cluster requires distinct hosts, not distinct availability zones; qualify/configure zone placement before promising AZ resilience. PVCs use the class's storage policy. The [EBS class example](examples/eks-storageclass.yaml) uses encrypted gp3 and retains volumes.
 6. An existing ingress controller and TLS configuration. The EKS example uses an **internal ALB**, IP targets, ACM termination and a TLS 1.2/1.3 listener policy. Replace the sample ARN, subnets and hostname. NetworkPolicy permits only the configured ALB subnet peers to the web service; AWS security groups and actual VPC CNI behavior also require verification. [AWS controller annotations](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/ingress/annotations/).
 
@@ -60,14 +62,7 @@ Default values deliberately fail without identity, database and network configur
 
 ## Install after infrastructure review
 
-These commands are instructions, **not actions performed by this implementation**. Create a private, reviewed values file from the external example; change all image, IdP, database, network and TLS references. For a managed database, add a private overlay equivalent to the managed example only after following [operator bootstrap](bootstrap/README.md).
-
-```sh
-helm upgrade --install dataslate deploy/helm/dataslate \
-  --namespace dataslate \
-  --values /secure/config/dataslate-values.yaml \
-  --wait --wait-for-jobs --timeout 15m
-```
+Follow the [canonical installation sequence](quickstart.md#install-the-reviewed-core) or generated `RUNBOOK.md`. It pins the context, reviews existing ownership, installs a **new** release without waiting for API readiness, waits for the migration Job, applies restricted runtime grants, then waits for API/web. An initial `--wait` would wait for the application before those grants exist. For a managed database, review [operator bootstrap](bootstrap/README.md) separately. The current CNPG example bootstraps a shared owner credential; provision distinct principals and reference their URLs through the external profile when using the hardened role boundary.
 
 The migration Job is a **normal release resource**, not a pre-install hook: an in-cluster database must be created before migration can connect. API readiness requires the migrated schema; liveness is separate. Migration failure leaves the API unready and inspectable. Increasing the install timeout alone cannot fix a missing IdP, image, CA, network route or incompatible schema.
 
@@ -80,12 +75,13 @@ These are component-specific implementation and local qualification profiles, no
 | Component | Selected profile | Current evidence |
 |---|---|---|
 | Spark operator / Spark | Apache operator 1.0.0, chart 1.8.0; Spark 4.1.3 | Real local Kubernetes batch execution, cancellation, admission and source protection; EKS still pending |
-| File ingestion | Spark 4.1.3, Scala 2.13, Delta 4.3.1, Hadoop/S3A 3.4.2 | [Pinned runtime](../runtime/ingestion/README.md) and fourteen offline production-container scenarios; cloud identity and table writes pending |
-| Distributed SQL | Trino 484, chart 1.45.0 | [Managed/external profile](sql/README.md), TLS/JWT, row filters/masks, cancellation and network-policy tests with local TPCH; native lake connectors pending |
+| File ingestion | Spark 4.1.3, Scala 2.13, Delta 4.3.1, Hadoop/S3A 3.4.2 | [Pinned runtime](../runtime/ingestion/README.md), seventeen Spark/Delta scenarios and local Delta publication/read evidence; EKS/S3 identity and writes remain pending |
+| Distributed SQL | Trino 484, chart 1.45.0 | [Managed/external profile](sql/README.md), TLS/JWT, row filters/masks, cancellation and network-policy tests; separate native Hive/Delta publication checks in [validation evidence](../docs/implementation/validation.md), with cloud table qualification pending |
 | Iceberg metadata | Apache Polaris 1.8.0, chart 1.8.0 | [Polaris profile](polaris/README.md), JDBC bootstrap/readiness and separate native metadata fixture; cloud table data/maintenance pending |
 | Control-plane database | PostgreSQL 17; local checks at 17.11 | TLS, restricted runtime role, migrations, concurrency and leases; managed CNPG HA/backups/restore pending |
 | Semantic retrieval | pgvector 0.8.7 | [Explicit extension setup](search/README.md), bounded exact hybrid scoring and policy checks; large-index relevance/capacity pending |
 | Sylon | Explicit Responses or Chat Completions gateway contract | [Private conversations and reviewed edits](../docs/implementation/sylon-contract.md), [private memory](../docs/implementation/sylon-memory-contract.md), local TLS/OAuth and durable lifecycle tests; external models/streaming/subscription login pending |
+| Airflow workflows | Airflow 3.4.0, optional chart 1.22.0/LocalExecutor | [Pinned optional profile](airflow/README.md), real container provider/FAB/Git discovery, verified HTTPS/PostgreSQL startup and reader mutation denial; managed Kubernetes install/upgrade/rotation remain unqualified |
 
 Application base images are pinned in [base-images.lock.json](base-images.lock.json). Optional operator chart pins are in [bootstrap/upstream-lock.json](bootstrap/upstream-lock.json). CNPG chart 0.29.1/operator 1.30.1 is currently a rendered bootstrap profile; it has not been qualified for availability or restoration here. Versions outside these exact combinations require their own qualification.
 

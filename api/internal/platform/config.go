@@ -22,6 +22,7 @@ type Config struct {
 	SQLBindingsFile                                         string
 	SQLBindings                                             []SQLBinding
 	Addr, AuthMode, DatabaseURL, Issuer, Audience, ClientID string
+	OIDCCAFile                                              string
 	Scopes                                                  []string
 	ExecutionBindingsFile                                   string
 	ExecutionBindings                                       []ExecutionBinding
@@ -29,6 +30,7 @@ type Config struct {
 
 func LoadConfig() (Config, error) {
 	c := Config{WorkflowBindingsFile: os.Getenv("DATASLATE_WORKFLOW_BINDINGS_FILE"), PublicationBindingsFile: os.Getenv("DATASLATE_PUBLICATION_BINDINGS_FILE"), SylonBindingsFile: os.Getenv("DATASLATE_SYLON_BINDINGS_FILE"), SearchBindingsFile: os.Getenv("DATASLATE_SEARCH_BINDINGS_FILE"), CatalogBindingsFile: os.Getenv("DATASLATE_CATALOG_BINDINGS_FILE"), SQLBindingsFile: os.Getenv("DATASLATE_SQL_BINDINGS_FILE"), Addr: os.Getenv("DATASLATE_ADDR"), AuthMode: os.Getenv("DATASLATE_AUTH_MODE"), DatabaseURL: os.Getenv("DATASLATE_DATABASE_URL"), Issuer: os.Getenv("DATASLATE_OIDC_ISSUER"), Audience: os.Getenv("DATASLATE_OIDC_AUDIENCE"), ClientID: os.Getenv("DATASLATE_OIDC_CLIENT_ID"), Scopes: strings.Fields(os.Getenv("DATASLATE_OIDC_SCOPES")), ExecutionBindingsFile: os.Getenv("DATASLATE_EXECUTION_BINDINGS_FILE")}
+	c.OIDCCAFile = os.Getenv("DATASLATE_OIDC_CA_FILE")
 	if c.Addr == "" {
 		c.Addr = "127.0.0.1:8080"
 	}

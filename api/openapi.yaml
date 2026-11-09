@@ -9999,6 +9999,19 @@
           "sqlExecutionEnabled": {
             "type": "boolean",
             "description": "SQL binding configured; engine policy and connectivity remain qualification requirements."
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "createWorkspace": {
+                "type": "boolean",
+                "description": "The verified API principal may create workspaces. Does not grant membership in the created workspace. Clients should treat an absent permission as false."
+              }
+            },
+            "required": [
+              "createWorkspace"
+            ]
           }
         },
         "required": [
@@ -10011,7 +10024,8 @@
           "notebookExecutionEnabled",
           "executionMode",
           "ingestionExecutionEnabled",
-          "sqlExecutionEnabled"
+          "sqlExecutionEnabled",
+          "permissions"
         ]
       },
       "Workspace": {

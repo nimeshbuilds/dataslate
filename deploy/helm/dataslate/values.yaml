@@ -7,6 +7,9 @@ oidc:
   audience: dataslate-api
   clientId: dataslate-web
   scopes: openid profile
+  # Optional additional issuer/JWKS trust, projected only into the API.
+  # caSecret: {name: organization-oidc-ca, key: ca.crt}
+  caSecret: null
 api:
   replicas: 2
   image:
@@ -55,6 +58,9 @@ postgres:
     retainOnUninstall: true
 migrations:
   enabled: true
+  # Optional separate owner/migrator credential; never mounted into runtime Pods.
+  # Omission preserves the existing shared-credential profile.
+  databaseSecret: {}
   activeDeadlineSeconds: 600
   ttlSecondsAfterFinished: 86400
 ingress:

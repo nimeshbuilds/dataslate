@@ -22,7 +22,7 @@ Public endpoints:
 
 Authenticated endpoints:
 
-- `GET /api/v1/status` -> `{product:"DataSlate", assistant:"Sylon", phase:"foundation", authMode, persistence:"memory"|"postgres", executionEnabled:boolean, executionMode:"approved-batch"|"disabled", notebookExecutionEnabled:boolean}`. Configured bindings determine these flags; notebook execution means saved Python batch capability. They do not assert backend health or grant the caller execution access.
+- `GET /api/v1/status` -> `{product:"DataSlate", assistant:"Sylon", phase:"foundation", authMode, persistence:"memory"|"postgres", executionEnabled:boolean, executionMode:"approved-batch"|"disabled", notebookExecutionEnabled:boolean, permissions:{createWorkspace:boolean}}`. Configured bindings determine the execution flags; notebook execution means saved Python batch capability. They do not assert backend health or grant the caller execution access. `permissions.createWorkspace` comes from the verified API principal using the same guard as workspace creation, independently of browser ID-token claims. Clients treat an absent permission as false; creation never implicitly grants workspace membership.
 - `GET /api/v1/workspaces`; `POST /api/v1/workspaces` body `{name, slug}`; create requires platform administrator.
 - `GET /api/v1/workspaces/{workspaceId}/notebooks`; `POST` body `{name, kind:"notebook"|"sql", cells:[{id,language:"python"|"sql",source}]}`.
 - `GET /api/v1/workspaces/{workspaceId}/notebooks/{id}`; `PUT` body `{name,kind,cells,revision}`. Editor/admin only for writes. No execution outputs in shared notebook documents.
@@ -43,6 +43,8 @@ Initial claim contract: `sub` identifies the caller; `dataslate_roles` may conta
 Explicit loopback development mode may use in-memory storage and a clearly marked development admin. It must never be the Helm deployment default. Development mode must refuse non-loopback listening. Production readiness requires storage availability. Migrations are explicit and versioned.
 
 Environment contract: `DATASLATE_ADDR` (loopback default), `DATASLATE_AUTH_MODE` (`oidc` default or explicit `development`), `DATASLATE_DATABASE_URL`, `DATASLATE_OIDC_ISSUER`, `DATASLATE_OIDC_AUDIENCE`, `DATASLATE_OIDC_CLIENT_ID`, `DATASLATE_OIDC_SCOPES` (space-separated). Document optional configuration. No production secret in examples. Browser should use Authorization Code + PKCE via a maintained OIDC client, and access token for API; callback `/auth/callback`. Avoid token logging or persistent localStorage tokens.
+
+Optional `DATASLATE_OIDC_CA_FILE` adds a bounded PEM trust bundle to system roots for the OIDC discovery/JWKS client only; it never disables hostname verification or changes other clients. Discovery/key endpoints require HTTPS, responses are capped at 1 MiB, requests at 10 seconds, and redirects remain on the original origin with at most two hops. A separate HTTPS JWKS origin explicitly advertised by trusted discovery metadata is supported. Trust file configuration errors fail closed. Helm projects the optional existing `oidc.caSecret` into API pods only. Trust rotation requires an API restart, and browser trust remains an independent prerequisite.
 
 ## Module identities
 

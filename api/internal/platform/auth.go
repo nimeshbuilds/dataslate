@@ -3,7 +3,6 @@ package platform
 import (
 	"context"
 	"errors"
-	"net/http"
 	"strings"
 	"time"
 
@@ -36,11 +35,21 @@ func (DevelopmentAuth) Authenticate(context.Context, string) (Principal, error) 
 type JWTAuth struct{ verifier *oidc.IDTokenVerifier }
 
 func NewJWTAuth(ctx context.Context, c Config) (*JWTAuth, error) {
-	// Discovery and key refresh have a network timeout, including refresh after startup.
-	client := &http.Client{Timeout: 10 * time.Second}
-	provider, err := oidc.NewProvider(oidc.ClientContext(ctx, client), c.Issuer)
+	// This client is retained by the provider's remote key set. Its scoped trust,
+	// HTTPS and response bounds therefore apply to both discovery and key refresh.
+	client, err := newOIDCHTTPClient(c.OIDCCAFile)
 	if err != nil {
 		return nil, err
+	}
+	provider, err := oidc.NewProvider(oidc.ClientContext(ctx, client), c.Issuer)
+	if err != nil {
+		return nil, errors.New("OIDC discovery failed; verify issuer availability and trust configuration")
+	}
+	var metadata struct {
+		JWKSURL string `json:"jwks_uri"`
+	}
+	if provider.Claims(&metadata) != nil || !validOIDCEndpoint(metadata.JWKSURL) {
+		return nil, errors.New("OIDC discovery requires a valid HTTPS key endpoint")
 	}
 	return &JWTAuth{verifier: provider.Verifier(&oidc.Config{ClientID: c.Audience, SupportedSigningAlgs: []string{oidc.RS256, oidc.ES256, oidc.PS256}})}, nil
 }

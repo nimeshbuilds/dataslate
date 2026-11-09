@@ -57,7 +57,7 @@ document.querySelectorAll('[role="tablist"]').forEach((tablist) => {
 
 const copyButton = document.getElementById('copy-command');
 let copyResetTimer;
-copyButton.addEventListener('click', async () => {
+copyButton?.addEventListener('click', async () => {
   const panel = document.querySelector('.terminal [role="tabpanel"]:not([hidden])');
   const commands = panel.querySelector('code').textContent;
   const status = document.getElementById('copy-status');

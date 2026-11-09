@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "context": "production-eks-context",
+  "namespace": "dataslate",
+  "release": "dataslate",
+  "kubernetesVersion": "1.34.0",
+  "publicUrl": "https://dataslate.example.com",
+  "images": {
+    "api": "registry.example.com/dataslate/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "web": "registry.example.com/dataslate/web@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "database": {
+    "name": "dataslate",
+    "migrationRole": "dataslate_migrator",
+    "runtimeRole": "dataslate_runtime",
+    "migrationSecret": {"name": "dataslate-migration-database", "key": "database-url"},
+    "runtimeSecret": {"name": "dataslate-runtime-database", "key": "database-url"},
+    "caSecret": {"name": "dataslate-database-ca", "key": "ca.crt"},
+    "egressCidrs": ["10.20.0.0/24", "10.20.1.0/24"],
+    "port": 5432
+  },
+  "oidc": {
+    "issuer": "https://identity.example.com/realms/dataslate",
+    "audience": "dataslate-api",
+    "clientId": "dataslate-web",
+    "scopes": "openid profile dataslate-api"
+  },
+  "ingress": {
+    "className": "nginx",
+    "tlsSecretName": "dataslate-ingress-tls",
+    "controllerNamespace": "ingress-nginx",
+    "controllerPodLabels": {"app.kubernetes.io/component": "controller", "app.kubernetes.io/name": "ingress-nginx"}
+  },
+  "network": {
+    "httpsEgressCidrs": ["203.0.113.10/32"],
+    "httpsEgressPorts": [443],
+    "dnsNamespace": "kube-system",
+    "dnsPodLabels": {"k8s-app": "kube-dns"}
+  },
+  "imagePullSecrets": ["dataslate-registry"]
+}

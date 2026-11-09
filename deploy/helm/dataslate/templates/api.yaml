@@ -57,6 +57,9 @@ spec:
             - {name: DATASLATE_OIDC_AUDIENCE, value: {{ .Values.oidc.audience | quote }}}
             - {name: DATASLATE_OIDC_CLIENT_ID, value: {{ .Values.oidc.clientId | quote }}}
             - {name: DATASLATE_OIDC_SCOPES, value: {{ .Values.oidc.scopes | quote }}}
+            {{- if .Values.oidc.caSecret }}
+            - {name: DATASLATE_OIDC_CA_FILE, value: /etc/dataslate/oidc/ca.crt}
+            {{- end }}
             {{- include "dataslate.databaseEnv" . | nindent 12 }}
             {{- if .Values.catalog.enabled }}
             - {name: DATASLATE_CATALOG_BINDINGS_FILE, value: /etc/dataslate/catalog/bindings.json}
@@ -94,6 +97,9 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
           volumeMounts:
+            {{- if .Values.oidc.caSecret }}
+            - {name: oidc-ca, mountPath: /etc/dataslate/oidc, readOnly: true}
+            {{- end }}
             - {name: postgres-ca, mountPath: /etc/dataslate/postgres, readOnly: true}
             - {name: tmp, mountPath: /tmp}
             {{- if .Values.workflow.enabled }}
@@ -125,6 +131,14 @@ spec:
             - {name: execution, mountPath: /etc/dataslate/execution, readOnly: true}
             {{- end }}
       volumes:
+        {{- if .Values.oidc.caSecret }}
+        - name: oidc-ca
+          secret:
+            secretName: {{ .Values.oidc.caSecret.name | quote }}
+            defaultMode: 0444
+            items:
+              - {key: {{ .Values.oidc.caSecret.key | quote }}, path: ca.crt}
+        {{- end }}
         {{- if .Values.workflow.enabled }}
         - name: workflow
           configMap:

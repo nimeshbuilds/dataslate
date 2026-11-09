@@ -30,6 +30,7 @@ Configure secrets through the deployment environment, not command-line flags. Mi
 | `PGSSLMODE` | Set to `verify-full` unless already enforced by the connection string |
 | `PGSSLROOTCERT` | Optional path to the trusted PostgreSQL CA bundle |
 | `DATASLATE_OIDC_ISSUER` | HTTPS issuer URL used for OIDC discovery |
+| `DATASLATE_OIDC_CA_FILE` | Optional PEM certificate bundle adding private issuer/JWKS trust to system roots for the OIDC client only; maximum 1 MiB |
 | `DATASLATE_OIDC_AUDIENCE` | API access-token audience; must differ from browser client ID |
 | `DATASLATE_OIDC_CLIENT_ID` | Public browser OIDC client identifier |
 | `DATASLATE_EXECUTION_BINDINGS_FILE` | Optional mounted JSON policy for immutable applications and issuer-qualified grants |
@@ -46,6 +47,8 @@ The production connector rejects unverified/disabled TLS and insecure connection
 
 Only bearer access tokens from the configured issuer and API audience are accepted. Signature, expiration and optional `nbf` are checked using `coreos/go-oidc` and a JWKS-backed verifier. Supported signing algorithms are RS256, ES256 and PS256. If `token_use` exists, it must be `access`. ID tokens for the browser's distinct audience are rejected. Forwarded user/group headers are ignored. Token revocation follows the identity provider's access-token lifetime; immediate introspection/revocation is not implemented, so use appropriately short-lived access tokens.
 
+Discovery and key refresh require HTTPS with hostname verification. `DATASLATE_OIDC_CA_FILE` adds private certificates without replacing system roots or changing other outbound clients. A missing, malformed, non-regular or oversized configured bundle fails startup; there is no TLS bypass. Discovery and JWKS responses are limited to 1 MiB and requests to 10 seconds. HTTPS key endpoints on another origin are allowed when explicitly advertised in trusted discovery metadata; redirects may remain on their original HTTPS origin for at most two hops. Provider response bodies, certificate contents and file paths are excluded from authentication errors. Restart API pods after changing issuer trust. With Helm, use `oidc.caSecret: {name: organization-oidc-ca, key: ca.crt}` to project one existing Secret key into the API only. The browser must separately trust the identity provider's certificate through its normal operating-system/browser trust configuration.
+
 ```json
 {
   "sub": "user-identifier",
@@ -59,6 +62,8 @@ Only bearer access tokens from the configured issuer and API audience are accept
 - `viewer`: read workspace documents and revision history.
 - `editor` or workspace `admin`: read, create, update, delete, preview Spark manifests.
 - `platform-admin`: create workspaces. This does not implicitly grant workspace data membership.
+
+`GET /api/v1/status` includes `permissions.createWorkspace`, derived from the verified API access-token principal using the same authorization rule as workspace creation. UI clients use this permission instead of inferring authorization from the browser ID token, which may legitimately omit DataSlate roles. Treat an absent permission as false. The create endpoint still checks current authorization on every request.
 
 Creation returns the new workspace ID. The administrator must assign membership for that ID through the identity provider and refresh the access token. Identity-provider group synchronization, membership administration UI, audit-event persistence, fine-grained notebook sharing and data-engine authorization are subsequent integration work. There is no row-level data security claim in this document API.
 

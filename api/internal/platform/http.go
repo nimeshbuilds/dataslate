@@ -54,7 +54,7 @@ func (s *Server) Handler() http.Handler {
 	})
 	api := http.NewServeMux()
 	api.HandleFunc("GET /api/v1/status", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 200, map[string]any{"product": "DataSlate", "assistant": "Sylon", "phase": "foundation", "authMode": s.Config.AuthMode, "persistence": s.Store.Mode(), "executionEnabled": len(s.Config.ExecutionBindings) > 0, "notebookExecutionEnabled": notebookExecutionEnabled(s.Config), "ingestionExecutionEnabled": ingestionExecutionEnabled(s.Config), "sqlExecutionEnabled": len(s.Config.SQLBindings) > 0, "executionMode": executionMode(s.Config)})
+		writeJSON(w, 200, map[string]any{"product": "DataSlate", "assistant": "Sylon", "phase": "foundation", "authMode": s.Config.AuthMode, "persistence": s.Store.Mode(), "executionEnabled": len(s.Config.ExecutionBindings) > 0, "notebookExecutionEnabled": notebookExecutionEnabled(s.Config), "ingestionExecutionEnabled": ingestionExecutionEnabled(s.Config), "sqlExecutionEnabled": len(s.Config.SQLBindings) > 0, "executionMode": executionMode(s.Config), "permissions": map[string]bool{"createWorkspace": principal(r).PlatformAdmin}})
 	})
 	api.HandleFunc("GET /api/v1/modules", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, map[string]any{"items": Modules()}) })
 	api.HandleFunc("POST /api/v1/deployment-plans", func(w http.ResponseWriter, r *http.Request) {

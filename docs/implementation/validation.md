@@ -2,6 +2,21 @@
 
 This records implementation evidence, not production certification. The default local development application uses explicit loopback authentication and memory storage; dedicated qualification harnesses also exercise PostgreSQL. The production code path requires OIDC and PostgreSQL.
 
+## Core Kubernetes onboarding and published quickstart — November 8, 2026
+
+The [core installation record](../../deploy/core-installation-qualification.md) and [sanitized evidence](../../deploy/core-installation-qualification.json) cover an actual new local ARM64 k3s installation of the production API/web images with verified-TLS PostgreSQL, Keycloak OIDC and TLS ingress. The [quickstart](../../deploy/quickstart.md) documents both source development and reviewed production configuration; the Pages version is linked from the product homepage.
+
+| Check | Observed result and boundary |
+|---|---|
+| Setup and chart | 21 strict profile/render tests passed. The generated bundle contains values, namespace, prerequisite inventory, rendered core and an interpreter/Helm-path-specific runbook. Separate migration/runtime Secrets and API-only OIDC CA mounts passed the core chart checks. Live Helm installation, migration/grants/readiness and a web-image revision-2 update passed; this is not a previous-version schema upgrade. |
+| Database permissions | 18 actual PostgreSQL 17.11 checks passed, including TLS identity, CRUD, DDL/ledger denials, repeated grants and rejected unsafe membership/ownership. Four actual psql guard regressions plus two service-file parser tests passed. A discovered PostgreSQL 17 `\quit 3` success-exit bug was replaced with explicit SQL exceptions and is covered in CI. |
+| Production browser | 54 real Keycloak PKCE checks passed across administrator/editor/viewer/outsider identities. Another 51 checks reopened exactly the saved notebook after PostgreSQL and both API pods restarted. The first post-restart login failed during IdP connection recovery and the retry passed; uninterrupted availability is not claimed. No API interception, token persistence, password grant or blanket certificate bypass was used. |
+| API and workspace regressions | Full Go race suite and vet passed locally; database-gated cases were skipped in that run and remain mandatory in CI. The production workspace build and all 165 browser tests passed, including four new permission/membership-onboarding cases. OIDC transport tests exercise private CA trust, signed tokens, key rotation and denied redirects. |
+| HTTPS and pod boundaries | Seven verifier tests passed and five real ingress probes passed. Pod checks confirmed read-only roots, dropped capabilities, no service-account token and migration-owner credential isolation. Actual CNI enforcement denied an unlabelled pod while the approved web pod reached the same API service. The final production web image preserves Host ports, fixing a live same-origin write failure. |
+| Public guide | 20 browser scenarios passed across five viewport sizes, with 32 repository links, responsive navigation, keyboard/deep-link behavior, copy/fallback controls and usable no-JavaScript content. Deployment documentation now covers actual local tool paths, staged grants, OIDC membership and configuration boundaries. |
+
+The fixture used one node and external-style dependencies in the same disposable cluster. Engines and Sylon were disabled in this core profile. Cloud lake identity, all-backend installation, previous-release upgrades, clean-environment restore and wider platform capabilities remain separate gates. Current source hashes, owned-resource cleanup and final remote publication are recorded separately from the earlier checkpoints below.
+
 ## Airflow workflows and installation preflight — November 8, 2026
 
 This checkpoint adds approved Airflow workflows, read-only deployment prerequisite inventory and an optional pinned Airflow deployment profile. The [workflow contract](workflow-contract.md), [native qualification record](workflow-qualification.md), [preflight guide](../../deploy/preflight/README.md) and [optional Airflow profile](../../deploy/airflow/README.md) define the supported boundaries. Airflow remains the scheduler and retry owner; DataSlate records one durable manual trigger intent and reconciles uncertain outcomes by reading the same upstream run.

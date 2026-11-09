@@ -45,6 +45,11 @@ jobs:
           DATASLATE_TEST_REQUIRE_VECTOR: "1"
       - name: API image build
         run: docker build -t dataslate-api:ci api
+      - name: PostgreSQL installation guard exit codes
+        run: python3 -m unittest discover -s deploy/setup -p 'test_runtime_role_postgres.py' -v
+        env:
+          # Explicit disposable CI fixture; this check creates no roles or schemas.
+          DATASLATE_TEST_DATABASE_URL: postgres://dataslate:dataslate-ci-only@127.0.0.1:5432/dataslate_test?sslmode=disable
       - name: Test and compile the opt-in PostgreSQL memory browser harness
         run: |
           mkdir -p api/.qa/memory-workspace
@@ -105,6 +110,8 @@ jobs:
         working-directory: web
       - run: npx playwright install --with-deps chromium
         working-directory: web
+      - name: GitHub Pages quickstart browser checks
+        run: node site/check-browser.mjs
       - run: npm test
         working-directory: web
       - name: Workspace image build
@@ -142,6 +149,12 @@ jobs:
         run: python -m unittest discover -s deploy/airflow -p 'test_*.py' -v
         env:
           HELM_BIN: deploy/.cache/helm
+      - name: Validate production setup bundle
+        run: python -m unittest discover -s deploy/setup -p 'test_*.py' -v
+        env:
+          HELM_BIN: deploy/.cache/helm
+      - name: Verify HTTPS installation checker
+        run: python -m unittest discover -s deploy/tests -p 'test_*.py' -v
       - name: Validate compute boundary generator
         run: python -m unittest discover -s deploy/compute -p 'test_*.py' -v
       - name: Validate deployment profiles

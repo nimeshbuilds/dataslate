@@ -4,6 +4,7 @@
 
 <p align="center">
   <a href="https://nimeshbuilds.github.io/dataslate/">Explore DataSlate</a> ·
+  <a href="https://nimeshbuilds.github.io/dataslate/quickstart.html">Quickstart</a> ·
   <a href="deploy/README.md">Deployment</a> ·
   <a href="docs/implementation/coverage.md">Roadmap</a> ·
   <a href="CONTRIBUTING.md">Contribute</a>
@@ -55,6 +56,8 @@ Each integration has its own validation gate. See the [capability inventory](doc
 | `docs/architecture/` | Current decisions and source-linked research snapshots |
 
 ## Run the application for development
+
+The [complete quickstart](https://nimeshbuilds.github.io/dataslate/quickstart.html) covers development and production configuration. For Kubernetes, the [review-bundle generator](deploy/setup/README.md) validates non-secret inputs and renders the core Helm chart with separate migration/runtime database credentials; follow the [staged installation guide](deploy/quickstart.md) through grants, readiness and first-workspace membership.
 
 This loopback workflow develops the Kubernetes product; it is not a separate local-compute edition. Requires Go matching `api/go.mod`, Node 22.19+ and npm. Use separate terminals:
 
