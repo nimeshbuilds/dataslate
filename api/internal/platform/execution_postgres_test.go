@@ -45,7 +45,7 @@ func TestPostgresExecutionDurabilityLeasesAndIdempotency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, lease, err := s.AcquireRun(ctx, "old-controller", 10*time.Millisecond)
+	_, lease, err := s.AcquireRun(ctx, "old-controller", time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestPostgresExecutionDurabilityLeasesAndIdempotency(t *testing.T) {
 	if err != nil || !read.SubmissionStarted || read.Profile != b.ExecutionProfile {
 		t.Fatalf("durable restart snapshot: %#v %v", read, err)
 	}
-	time.Sleep(20 * time.Millisecond)
+	expireExecutionLease(t, s, lease)
 	backend := &fakeExecutionBackend{}
 	if _, err = ReconcileOnce(ctx, second, backend, "new-controller"); err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestPostgresConcurrentRunClaims(t *testing.T) {
 	errs := make(chan error, 8)
 	for i := 0; i < 8; i++ {
 		wg.Go(func() {
-			_, lease, e := s.AcquireRun(ctx, newResource("worker-").ID, time.Second)
+			_, lease, e := s.AcquireRun(ctx, newResource("worker-").ID, time.Minute)
 			leases <- lease
 			errs <- e
 		})

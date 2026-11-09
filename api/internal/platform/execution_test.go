@@ -141,6 +141,33 @@ func TestMemoryExecutionConcurrencyAndFencing(t *testing.T) {
 	s := NewMemoryStore()
 	exerciseExecutionStore(t, s, "default")
 }
+
+// Keep fresh-lease assertions independent of network/scheduler latency, then
+// expire only the expected lease without changing its owner or fencing token.
+func expireExecutionLease(t *testing.T, s Store, lease RunLease) {
+	t.Helper()
+	switch db := s.(type) {
+	case *MemoryStore:
+		db.mu.Lock()
+		defer db.mu.Unlock()
+		entry := db.executions[lease.RunID]
+		if entry == nil || entry.Owner != lease.Owner || entry.Fence != lease.Fence || !entry.Until.After(time.Now()) {
+			t.Fatal("expected a fresh execution lease before forced expiry")
+		}
+		entry.Until = time.Now().Add(-time.Second)
+	case *PostgresStore:
+		tag, err := db.pool.Exec(context.Background(), `UPDATE dataslate_runs SET lease_until=clock_timestamp()-interval '1 second' WHERE id=$1 AND lease_owner=$2 AND lease_fence=$3 AND lease_until>clock_timestamp()`, lease.RunID, lease.Owner, lease.Fence)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tag.RowsAffected() != 1 {
+			t.Fatal("expected exactly one fresh execution lease before forced expiry")
+		}
+	default:
+		t.Fatalf("unsupported execution lease fixture %T", s)
+	}
+}
+
 func exerciseExecutionStore(t *testing.T, s Store, ws string) {
 	t.Helper()
 	ctx := context.Background()
@@ -176,26 +203,34 @@ func exerciseExecutionStore(t *testing.T, s Store, ws string) {
 	if _, _, err := s.CreateRun(ctx, newRun(ws, b, p), key, "different-request"); !errors.Is(err, ErrConflict) {
 		t.Fatal("key reuse accepted different request")
 	}
-	r, first, err := s.AcquireRun(ctx, "first-worker", 10*time.Millisecond)
+	r, first, err := s.AcquireRun(ctx, "first-worker", time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if r.ID != id {
 		t.Fatalf("unexpected leased run %s != %s", r.ID, id)
 	}
-	if _, _, err = s.AcquireRun(ctx, "second-worker", time.Second); !errors.Is(err, ErrNotFound) {
+	if _, _, err = s.AcquireRun(ctx, "second-worker", time.Minute); !errors.Is(err, ErrNotFound) {
 		t.Fatal("simultaneous live leases")
 	}
-	time.Sleep(20 * time.Millisecond)
-	_, second, err := s.AcquireRun(ctx, "second-worker", time.Second)
+	expireExecutionLease(t, s, first)
+	if _, err = s.AdvanceRun(ctx, first, RunUpdate{State: "running", Message: "expired worker"}); !errors.Is(err, ErrLeaseLost) {
+		t.Fatal("expired worker wrote state before lease takeover")
+	}
+	_, second, err := s.AcquireRun(ctx, "second-worker", time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second.Fence <= first.Fence {
-		t.Fatal("lease fence did not advance")
+	if second.RunID != first.RunID || second.Fence <= first.Fence {
+		t.Fatal("lease takeover did not advance the same run's fence")
 	}
 	if _, err = s.AdvanceRun(ctx, first, RunUpdate{State: "running", Message: "stale worker"}); !errors.Is(err, ErrLeaseLost) {
 		t.Fatal("expired worker wrote state")
+	}
+	staleFence := second
+	staleFence.Fence = first.Fence
+	if _, err = s.AdvanceRun(ctx, staleFence, RunUpdate{State: "running", Message: "stale fence"}); !errors.Is(err, ErrLeaseLost) {
+		t.Fatal("current owner wrote state with a stale fencing token")
 	}
 	if _, err = s.CancelRun(ctx, ws, id, p); err != nil {
 		t.Fatal(err)
@@ -213,14 +248,14 @@ func exerciseExecutionStore(t *testing.T, s Store, ws string) {
 	if _, err = s.Run(ctx, "other-workspace", id, p); !errors.Is(err, ErrNotFound) {
 		t.Fatal("cross-workspace read")
 	}
-	_, third, err := s.AcquireRun(ctx, "third-worker", time.Second)
+	_, third, err := s.AcquireRun(ctx, "third-worker", time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.AdvanceRun(ctx, third, RunUpdate{State: "cancelled", UID: "uid-1", Message: "Deleted", Observed: true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = s.AcquireRun(ctx, "fourth-worker", time.Second); !errors.Is(err, ErrNotFound) {
+	if _, _, err = s.AcquireRun(ctx, "fourth-worker", time.Minute); !errors.Is(err, ErrNotFound) {
 		t.Fatal("terminal run was leased again")
 	}
 }
